@@ -22,7 +22,7 @@ apply from: 'etc/version.gradle'
 apply plugin: 'idea'
 apply plugin: 'eclipse'
 
-ext.cascadingVersion = '2.2.0-+'
+ext.cascadingVersion = '2.2.0-wip-43'
 
 // set property to use locally installed cascading builds
 // otherwise wip releases will be pulled from conjars
@@ -46,6 +46,9 @@ subprojects {
   apply plugin: 'idea'
   apply plugin: 'eclipse'
 
+  targetCompatibility = 1.6
+  sourceCompatibility = 1.6
+
   // lingual is a sub-project of cascading
   // project name is set in settings.gradle
   group = 'cascading'
@@ -56,6 +59,12 @@ subprojects {
   configurations {
     testArtifacts {
       extendsFrom testRuntime
+    }
+  }
+
+  eclipse {
+    classpath {
+      downloadSources=true
     }
   }
 
