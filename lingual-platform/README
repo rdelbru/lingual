@@ -1,0 +1,24 @@
+How to run unit tests in Eclipse
+
+When you will try to execute a unit test in eclipse, the test framework will complain that 
+cascading-local or cascading-hadoop is missing:
+
+"add cascading-local, cascading-hadoop, and/or external planner library to the test classpath"
+
+To solve this problem, we need to add the artifacts of cascading-local as test dependencies
+
+    <dependency>
+      <groupId>cascading</groupId>
+      <artifactId>cascading-local</artifactId>
+      <version>${cascading.version}</version>
+      <scope>test</scope>
+    </dependency>
+    
+    <dependency>
+      <groupId>cascading</groupId>
+      <artifactId>cascading-local</artifactId>
+      <version>${cascading.version}</version>
+      <classifier>tests</classifier>
+      <scope>test</scope>
+    </dependency> 
+

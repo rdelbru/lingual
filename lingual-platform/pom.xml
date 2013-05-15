@@ -1,0 +1,99 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  
+  <modelVersion>4.0.0</modelVersion>
+  
+  <parent>
+    <groupId>cascading</groupId>
+    <artifactId>lingual-parent</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <relativePath>../lingual-parent</relativePath>
+  </parent>
+  
+  <groupId>cascading</groupId>
+  <artifactId>lingual-platform</artifactId>
+  <packaging>jar</packaging>
+  <version>1.0-SNAPSHOT</version>
+  
+  <name>lingual-platform</name>
+  
+  <dependencies>
+  
+    <dependency>
+      <groupId>cascading</groupId>
+      <artifactId>lingual-core</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>cascading</groupId>
+      <artifactId>lingual-client</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>cascading</groupId>
+      <artifactId>cascading-core</artifactId>
+      <version>${cascading.version}</version>
+      <classifier>tests</classifier>
+      <scope>test</scope>
+    </dependency>
+    
+    <dependency>
+      <groupId>cascading</groupId>
+      <artifactId>cascading-platform</artifactId>
+      <version>${cascading.version}</version>
+      <classifier>tests</classifier>
+      <scope>test</scope>
+    </dependency>
+    
+    <dependency>
+      <groupId>commons-io</groupId>
+      <artifactId>commons-io</artifactId>
+      <version>2.1</version>
+      <scope>test</scope>
+    </dependency>
+   
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>1.6.1</version>
+      <scope>test</scope>
+    </dependency>
+    
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-log4j12</artifactId>
+      <version>1.6.1</version>
+      <scope>test</scope>
+    </dependency>
+    
+    <dependency>
+      <groupId>log4j</groupId>
+      <artifactId>log4j</artifactId>
+      <version>1.2.16</version>
+      <scope>test</scope>
+    </dependency>
+    
+    <!-- Added for being able to execute unit tests locally in Eclipse -->
+    
+    <dependency>
+      <groupId>cascading</groupId>
+      <artifactId>cascading-local</artifactId>
+      <version>${cascading.version}</version>
+      <scope>test</scope>
+    </dependency>
+    
+    <dependency>
+      <groupId>cascading</groupId>
+      <artifactId>cascading-local</artifactId>
+      <version>${cascading.version}</version>
+      <classifier>tests</classifier>
+      <scope>test</scope>
+    </dependency>
+    
+  </dependencies>
+
+</project>

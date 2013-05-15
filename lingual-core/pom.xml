@@ -1,0 +1,133 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  
+  <modelVersion>4.0.0</modelVersion>
+  
+  <parent>
+    <groupId>cascading</groupId>
+    <artifactId>lingual-parent</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <relativePath>../lingual-parent</relativePath>
+  </parent>
+  
+  <groupId>cascading</groupId>
+  <artifactId>lingual-core</artifactId>
+  <packaging>jar</packaging>
+  <version>1.0-SNAPSHOT</version>
+  
+  <name>lingual-core</name>
+  
+  <properties>
+    <optiq.version>0.3.3</optiq.version>
+    <linq4j.version>0.1.1</linq4j.version>
+    <cascading.bind.version>1.0.0-wip-58</cascading.bind.version>
+  </properties>
+  
+  <dependencies>
+  
+    <dependency>
+      <groupId>cascading</groupId>
+      <artifactId>cascading-core</artifactId>
+      <version>${cascading.version}</version>
+    </dependency>
+    
+    <dependency>
+      <groupId>cascading</groupId>
+      <artifactId>cascading-bind</artifactId>
+      <version>${cascading.bind.version}</version>
+    </dependency>
+    
+    <dependency>
+      <groupId>net.hydromatic</groupId>
+      <artifactId>optiq</artifactId>
+      <version>${optiq.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>xerces</groupId>
+          <artifactId>xercesImpl</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.apache.ant</groupId>
+          <artifactId>ant</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.jgrapht</groupId>
+          <artifactId>jgrapht-jdk1.5</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.jgrapht</groupId>
+          <artifactId>jgrapht-jdk1.6</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    
+    <dependency>
+      <groupId>net.hydromatic</groupId>
+      <artifactId>linq4j</artifactId>
+      <version>${linq4j.version}</version>
+    </dependency>
+    
+    <dependency>
+      <groupId>com.google.guava</groupId>
+      <artifactId>guava</artifactId>
+      <version>14.0.1</version>
+    </dependency>
+    
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>2.1.1</version>
+    </dependency>
+    
+    <dependency>
+      <groupId>com.fasterxml.jackson.datatype</groupId>
+      <artifactId>jackson-datatype-guava</artifactId>
+      <version>2.1.1</version>
+    </dependency>
+    
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-lang3</artifactId>
+      <version>3.1</version>
+    </dependency>
+   
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>1.6.1</version>
+      <scope>provided</scope>
+    </dependency>
+    
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-log4j12</artifactId>
+      <version>1.6.1</version>
+      <scope>provided</scope>
+    </dependency>
+    
+    <dependency>
+      <groupId>log4j</groupId>
+      <artifactId>log4j</artifactId>
+      <version>1.2.16</version>
+      <scope>provided</scope>
+    </dependency>
+    
+    <dependency>
+      <groupId>cascading</groupId>
+      <artifactId>cascading-core</artifactId>
+      <version>${cascading.version}</version>
+      <classifier>tests</classifier>
+      <scope>test</scope>
+    </dependency>
+    
+    <dependency>
+      <groupId>cascading</groupId>
+      <artifactId>cascading-platform</artifactId>
+      <version>${cascading.version}</version>
+      <classifier>tests</classifier>
+      <scope>test</scope>
+    </dependency>
+    
+  </dependencies>
+
+</project>
