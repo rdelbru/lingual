@@ -22,3 +22,6 @@ To solve this problem, we need to add the artifacts of cascading-local as test d
       <scope>test</scope>
     </dependency> 
 
+You need also to add the lingual-local project as runtime depdnency when running the test. For this,
+you need to go in the run configuration of the unit test, and add the lingual-local project
+in the classpath.
