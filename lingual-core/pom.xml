@@ -20,7 +20,7 @@
   <properties>
     <optiq.version>0.3.3</optiq.version>
     <linq4j.version>0.1.1</linq4j.version>
-    <cascading.bind.version>1.0.0-wip-58</cascading.bind.version>
+    <cascading.bind.version>1.0.0-wip-60</cascading.bind.version>
   </properties>
   
   <dependencies>
@@ -35,6 +35,14 @@
       <groupId>cascading</groupId>
       <artifactId>cascading-bind</artifactId>
       <version>${cascading.bind.version}</version>
+      <exclusions>
+        <!-- Exclude cascading dependency to avoid incompatibility problem with 
+             gradle dependency version, e.g., 2.2.+ -->
+        <exclusion>
+          <groupId>cascading</groupId>
+          <artifactId>cascading-core</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     
     <dependency>

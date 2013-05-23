@@ -35,7 +35,7 @@
     <dependency>
       <groupId>sqlline</groupId>
       <artifactId>sqlline</artifactId>
-      <version>1_0_2</version>
+      <version>1.0.9</version>
     </dependency>
     
     <dependency>

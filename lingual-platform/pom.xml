@@ -79,7 +79,7 @@
     
     <!-- Added for being able to execute unit tests locally in Eclipse -->
     
-    <dependency>
+    <!-- dependency>
       <groupId>cascading</groupId>
       <artifactId>cascading-local</artifactId>
       <version>${cascading.version}</version>
@@ -92,7 +92,7 @@
       <version>${cascading.version}</version>
       <classifier>tests</classifier>
       <scope>test</scope>
-    </dependency>
+    </dependency -->
     
   </dependencies>
 

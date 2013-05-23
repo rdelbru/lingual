@@ -297,45 +297,44 @@ public class SimpleSqlPlatformTest extends JDBCPlatformTestCase
     assertTablesEqual( "emps-depts-sum-count-groupby",
       "select emps.deptno, sum( emps.age ) as s1, count( distinct emps.city ) as c1 from sales.emps, sales.depts where emps.deptno = depts.deptno group by emps.deptno" );
     }
-  
+
   @Test
-  public void testInnerJoinCouldNotResolveOutgoingValue() throws Exception
+  public void testSelectDuplicateColumns() throws Exception
     {
-    String query = "SELECT n1.city " +
-    		"FROM sales.emps AS t0 " +
-    		"INNER JOIN sales.emps AS n1 " +
-    		"ON (n1.gender = 'M' AND n1.empno = t0.empno)" +
-    		"WHERE t0.gender = 'M' " +
-    		"AND t0.city = 'Vancouver'"; 
-    
-    assertTablesEqual( "emps-depts-inner-join-could-not-resolve", query );
+    assertTableValuesEqual( "sales-select-duplicate-columns", "select empno, empno from sales.sales where empno < 110" );
     }
-  
+
   @Test
-  public void testPlannerArrayNotImplemented() throws Exception
+  public void testSelectDuplicateColumnsAs() throws Exception
     {
-    String query = "SELECT p0.city, p1.city, p1.empno, p0.empno " +
-      "FROM sales.emps AS p0 " +
-      "INNER JOIN sales.emps AS p1 ON (p1.gender = 'M' ) " +
-      "LEFT JOIN sales.emps AS p2 ON (p2.gender = 'M' " +
-      "AND p2.empno = p1.empno " +
-      "AND ( NOT(CASE WHEN (p0.age IS NOT NULL OR p2.age IS NOT NULL ) " +
-      "THEN p0.age IS NOT NULL " +
-      "AND p2.age IS NOT NULL " +
-      "AND p0.age = p2.age " +
-      "AND p0.city = p2.city " +
-      "WHEN (p0.name IS NULL " +
-      "OR p0.name = 'Bob' ) " +
-      "AND (p2.name IS NULL " +
-      "OR p2.name = 'Bob' ) " +
-      "THEN p0.city = p2.city " +
-      "WHEN p0.name = p2.name " +
-      "AND p0.city = p2.city " +
-      "THEN  1=1  END))) " +
-      "WHERE p0.gender = 'M' " +
-      "AND p2.city IS NULL"; 
-    
-    assertTablesEqual( "emps-planner-array-not-implemented", query );
+    assertTableValuesEqual( "sales-select-duplicate-columns-as", "select empno, sale_date as empno from sales.sales" );
     }
-  
+
+  @Test
+  public void testSelectDuplicateColumnsAsFilter() throws Exception
+    {
+    assertTableValuesEqual( "sales-select-duplicate-columns-as-filter", "select empno, sale_date as empno from sales.sales where empno < 110" );
+    }
+
+  @Test
+  public void testSelectDuplicateColumnsAsAliasFilter() throws Exception
+    {
+    assertTablesEqual( "sales-select-duplicate-columns-as-alias-filter", "select empno, empno as x from sales.sales where empno < 110" );
+    }
+
+  @Test
+  public void testInnerJoinValues() throws Exception
+    {
+    assertTablesEqual( "emps-values-join", "select empno, desc from sales.emps, (SELECT * FROM (VALUES (10, 'SameName')) AS t (id, desc)) as sn" +
+      " where emps.deptno = sn.id and sn.desc = 'SameName' group by empno, desc" );
+    }
+
+  @Test
+  public void testSelfJoin() throws Exception
+    {
+    String query = "SELECT n1.city FROM sales.emps AS t0 INNER JOIN sales.emps AS n1 ON (n1.gender = 'M' AND n1.empno = t0.empno)" +
+      "WHERE t0.gender = 'M' AND t0.city = 'Vancouver'";
+
+    assertTablesEqual( "emps-depts-self-join", query );
+    }
   }

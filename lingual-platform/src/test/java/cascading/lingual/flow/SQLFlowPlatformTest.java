@@ -168,4 +168,5 @@ public class SQLFlowPlatformTest extends LingualPlatformTestCase
 
     validateLength( flow, 2 );
     }
+  
   }
