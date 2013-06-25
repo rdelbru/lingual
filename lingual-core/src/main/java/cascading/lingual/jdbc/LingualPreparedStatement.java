@@ -49,10 +49,9 @@ class LingualPreparedStatement extends LingualStatement implements PreparedState
   {
   private final PreparedStatement parent;
 
-  public LingualPreparedStatement( Properties properties, PreparedStatement parent )
+  public LingualPreparedStatement( Properties properties, PreparedStatement parent, LingualConnection lingualConnection )
     {
-    super( properties, parent );
-
+    super( properties, parent, lingualConnection );
     this.parent = parent;
     }
 

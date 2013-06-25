@@ -35,9 +35,12 @@ import java.sql.SQLXML;
 import java.sql.Savepoint;
 import java.sql.Statement;
 import java.sql.Struct;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 
+import cascading.flow.Flow;
 import cascading.lingual.catalog.SchemaCatalog;
 import cascading.lingual.optiq.FieldTypeFactory;
 import cascading.lingual.platform.PlatformBroker;
@@ -65,12 +68,38 @@ public abstract class LingualConnection implements Connection
   private Properties properties;
   private PlatformBroker platformBroker;
 
+  // see JavaDoc on LingualConnectionFlowListener for why this is a Collection.
+  private Set<Flow> trackedFlows = new HashSet<Flow>();
+
   protected LingualConnection( Connection parent, Properties properties ) throws SQLException
     {
     this.parent = parent.unwrap( OptiqConnection.class );
     this.properties = properties;
 
-    initialize();
+    // log errors fully here in case the calling platform does a poor job of error reporting.
+    try
+      {
+      initialize();
+      }
+    catch( SQLException sqlException )
+      {
+      String providerError = String.format( "connection failed: %s ( provider %s error code %d).", sqlException.getMessage(), parent.getMetaData().getDatabaseProductName(), sqlException.getErrorCode() );
+      LOG.error( providerError );
+      LOG.error( "\tconnection URL: " + parent.getMetaData().getURL() );
+      if( platformBroker != null )
+        {
+        LOG.error( "\tread catalog from: " + platformBroker.getFullCatalogPath() );
+        if( platformBroker.getCatalog() != null && platformBroker.getCatalog().getRootSchemaDef() != null )
+          LOG.error( "\tused root schema from: " + platformBroker.getCatalog().getRootSchemaDef().getIdentifier() );
+        else
+          LOG.error( "\teither catalog or root schema not set." );
+        }
+      else
+        {
+        LOG.error( "\tunable to create platform " + getStringProperty( PLATFORM_PROP ) + ": {}", sqlException.getMessage() );
+        }
+      throw sqlException;
+      }
     }
 
   private void initialize() throws SQLException
@@ -89,8 +118,15 @@ public abstract class LingualConnection implements Connection
       setSchema( schemaName );
       LOG.info( "using schema: {}", schemaName );
       }
+    else
+      {
+      LOG.info( "using default schema." );
+      }
 
     platformBroker = PlatformBrokerFactory.createPlatformBroker( platformName, properties );
+
+    if( platformBroker == null )
+      throw new SQLException( "no platform broker for " + platformName );
 
     setAutoCommit( !isCollectorCacheEnabled() ); // this forces the default to true
 
@@ -140,6 +176,27 @@ public abstract class LingualConnection implements Connection
     catalog.addSchemasTo( this );
     }
 
+  public void trackFlow( Flow flow )
+    {
+    trackedFlows.add( flow );
+    }
+
+  public void unTrackFlow( Flow flow )
+    {
+    trackedFlows.remove( flow );
+    }
+
+  public Flow getCurrentFlow()
+    {
+    // see JavaDoc on LingualConnectionFlowListener for why this behavior exists
+    if( trackedFlows.size() == 1 )
+      return trackedFlows.iterator().next();
+
+    LOG.error( "unable to determine single current flow. found {} flows.", trackedFlows.size() );
+
+    return null;
+    }
+
   // Connection methods
   public void setSchema( String schema ) throws SQLException
     {
@@ -149,13 +206,13 @@ public abstract class LingualConnection implements Connection
   @Override
   public Statement createStatement() throws SQLException
     {
-    return new LingualStatement( properties, parent.createStatement() );
+    return new LingualStatement( properties, parent.createStatement(), this );
     }
 
   @Override
   public PreparedStatement prepareStatement( String sql ) throws SQLException
     {
-    return new LingualPreparedStatement( properties, parent.prepareStatement( sql ) );
+    return new LingualPreparedStatement( properties, parent.prepareStatement( sql ), this );
     }
 
   @Override

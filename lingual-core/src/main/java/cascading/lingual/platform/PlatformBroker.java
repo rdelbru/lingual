@@ -23,6 +23,7 @@ package cascading.lingual.platform;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.ref.WeakReference;
 import java.net.URI;
 import java.sql.SQLException;
 import java.util.Collections;
@@ -71,8 +72,6 @@ public abstract class PlatformBroker<Config>
   public static final String CATALOG_FILE_PROP = "lingual.catalog.name";
   public static final String CATALOG_FILE = "catalog";
 
-  public static final String PLANNER_DEBUG = "lingual.planner.debug";
-
   private Properties properties;
 
   private CascadingServices cascadingServices;
@@ -81,6 +80,9 @@ public abstract class PlatformBroker<Config>
   private SchemaCatalog catalog;
 
   private Map<String, TupleEntryCollector> collectorCache;
+
+  private WeakReference<LingualConnection> defaultConnection;
+
 
   protected PlatformBroker()
     {
@@ -114,11 +116,13 @@ public abstract class PlatformBroker<Config>
   public void startConnection( LingualConnection connection ) throws SQLException
     {
     getCatalog().addSchemasTo( connection );
+    defaultConnection = new WeakReference<LingualConnection>( connection );
     }
 
   public synchronized void closeConnection( LingualConnection connection )
     {
     closeCollectorCache();
+    defaultConnection.clear();
     }
 
   public synchronized void enableCollectorCache()
@@ -168,7 +172,7 @@ public abstract class PlatformBroker<Config>
 
   public DebugLevel getDebugLevel()
     {
-    String plannerVerbose = getProperties().getProperty( PLANNER_DEBUG, DebugLevel.NONE.toString() );
+    String plannerVerbose = getProperties().getProperty( Driver.PLANNER_DEBUG, DebugLevel.NONE.toString() );
 
     return DebugLevel.valueOf( plannerVerbose.toUpperCase() );
     }
@@ -392,13 +396,15 @@ public abstract class PlatformBroker<Config>
 
   public LingualFlowFactory getFlowFactory( Branch branch )
     {
-    return new LingualFlowFactory( this, createUniqueName(), branch );
+    LingualConnection lingualConnection = defaultConnection.get();
+    return new LingualFlowFactory( this, lingualConnection, createUniqueName(), branch );
     }
 
   public SchemaCatalog newCatalogInstance()
     {
     try
       {
+      LOG.info( "creating new SchemaCatalog at {}", getFullCatalogPath() );
       SchemaCatalog schemaCatalog = getCatalogClass().getConstructor().newInstance();
 
       schemaCatalog.setPlatformBroker( this );

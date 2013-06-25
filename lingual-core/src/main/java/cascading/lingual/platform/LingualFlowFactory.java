@@ -28,6 +28,7 @@ import cascading.flow.FlowDef;
 import cascading.lingual.catalog.Format;
 import cascading.lingual.catalog.Protocol;
 import cascading.lingual.catalog.SchemaCatalog;
+import cascading.lingual.jdbc.LingualConnection;
 import cascading.lingual.optiq.meta.Branch;
 import cascading.lingual.optiq.meta.Ref;
 import cascading.lingual.util.Version;
@@ -47,6 +48,7 @@ public class LingualFlowFactory extends FlowFactory<Protocol, Format>
   PlatformBroker platformBroker;
   private Pipe tail;
   private SchemaCatalog catalog;
+  private LingualConnection lingualConnection;
 
   /**
    * Instantiates a new Lingual flow factory.
@@ -55,11 +57,12 @@ public class LingualFlowFactory extends FlowFactory<Protocol, Format>
    * @param name           the name
    * @param branch         the branch
    */
-  public LingualFlowFactory( PlatformBroker platformBroker, String name, Branch branch )
+  public LingualFlowFactory( PlatformBroker platformBroker, LingualConnection lingualConnection, String name, Branch branch )
     {
     super( platformBroker.getProperties(), platformBroker.getCatalog().getProtocolHandlers(), name );
     this.platformBroker = platformBroker;
     this.catalog = platformBroker.getCatalog();
+    this.lingualConnection = lingualConnection;
     this.tail = branch.current;
 
     for( Ref head : branch.heads.keySet() )
@@ -67,7 +70,7 @@ public class LingualFlowFactory extends FlowFactory<Protocol, Format>
       Stereotype<Protocol, Format> stereotypeFor;
 
       if( head.identifier == null )
-        stereotypeFor = catalog.getRootSchemaDef().getStereotype( head.name );
+        stereotypeFor = catalog.getRootSchemaDef().findStereotypeFor( head.fields ); // do not use head name
       else
         stereotypeFor = catalog.findStereotypeFor( head.identifier );
 
@@ -103,6 +106,10 @@ public class LingualFlowFactory extends FlowFactory<Protocol, Format>
       .addTails( tail )
       .setDebugLevel( platformBroker.getDebugLevel() );
 
-    return createFlowFrom( flowDef, tail );
+    Flow flow = createFlowFrom( flowDef, tail );
+
+    flow.addListener( new LingualConnectionFlowListener( lingualConnection ) );
+
+    return flow;
     }
   }

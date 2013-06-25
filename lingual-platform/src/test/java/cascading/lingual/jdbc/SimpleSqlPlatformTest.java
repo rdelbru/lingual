@@ -21,6 +21,7 @@
 package cascading.lingual.jdbc;
 
 import cascading.tuple.Fields;
+import org.junit.Ignore;
 import org.junit.Test;
 
 /**
@@ -52,6 +53,12 @@ public class SimpleSqlPlatformTest extends JDBCPlatformTestCase
   public void testSelectFilterOneString() throws Exception
     {
     assertTablesEqual( "emps-filter-one", "select name from sales.emps where name = 'Wilma'" );
+    }
+
+  @Test
+  public void testSelectLike() throws Exception
+    {
+    assertTablesEqual( "emps-filter-one", "select name from sales.emps where name like 'W%ma'" );
     }
 
   @Test
@@ -88,6 +95,24 @@ public class SimpleSqlPlatformTest extends JDBCPlatformTestCase
   public void testSelectOrderByAscDesc() throws Exception
     {
     assertTablesEqual( "emps-select-ordered-asc-desc", "select empno, name from sales.emps order by empno asc, name desc" );
+    }
+
+  @Test
+  public void testSelectOrderByNullsFirst() throws Exception
+    {
+    assertTablesEqual( "emps-select-ordered-city-nulls-first", "select empno, name, city from sales.emps order by city nulls first" );
+    }
+
+  @Test
+  public void testSelectOrderByDescNullsFirst() throws Exception
+    {
+    assertTablesEqual( "emps-select-ordered-city-desc-nulls-first", "select empno, name, city from sales.emps order by city desc nulls first" );
+    }
+
+  @Test
+  public void testSelectOrderByNullsLast() throws Exception
+    {
+    assertTablesEqual( "emps-select-ordered-city-nulls-last", "select empno, name, city from sales.emps order by city nulls last" );
     }
 
   @Test
@@ -336,5 +361,34 @@ public class SimpleSqlPlatformTest extends JDBCPlatformTestCase
       "WHERE t0.gender = 'M' AND t0.city = 'Vancouver'";
 
     assertTablesEqual( "emps-depts-self-join", query );
+    }
+
+  @Test
+  public void testJoinedSubquery() throws Exception
+    {
+    String query = "select name, empno, emps.deptno from sales.emps, " +
+      "( select deptno, min( JOINEDAT ) as min_date from sales.emps group by deptno ) min_dept_date " +
+      "where joinedat = min_dept_date.min_date";
+
+    assertTablesEqual( "emps-joined-subquery", query );
+    }
+
+  @Ignore("not implemented yet")
+  @Test
+  public void testCorrelatedSubquery() throws Exception
+    {
+    String query = "select name, empno, emps_outer.deptno from sales.emps as emps_outer " +
+      "where joinedat = ( select min( joinedat ) from sales.emps where deptno = emps_outer.deptno )";
+
+    assertTablesEqual( "emps-correlated-subquery", query );
+    }
+
+  @Ignore("not implemented yet")
+  @Test
+  public void testRankOver() throws Exception
+    {
+    String query = "select name, empno, rank() over ( partition by deptno order by joinedat ) as r from sales.emps";
+
+    assertTablesEqual( "emps-rank-over", query );
     }
   }

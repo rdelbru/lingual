@@ -21,9 +21,9 @@
 def bindVersion = "wip-58"
 def bindChanging = false
 
-def linq4jVersion = '0.1.1'
+def linq4jVersion = '0.1.5'
 def linq4jChanging = false
-def optiqVersion = '0.3.3'
+def optiqVersion = '0.4.5'
 def optiqChanging = false
 
 // set the following property in $root/gradle.properties to use local installs of bind
@@ -56,6 +56,7 @@ dependencies {
     exclude group: 'xalan'
     exclude group: 'org.apache.ant'
     exclude group: 'org.jgrapht'
+    exclude group: 'org.mongodb'
   }
 
   compile group: 'net.hydromatic', name: 'linq4j', version: linq4jVersion, changing: linq4jChanging
