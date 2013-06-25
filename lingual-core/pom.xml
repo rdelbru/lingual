@@ -18,9 +18,9 @@
   <name>lingual-core</name>
   
   <properties>
-    <optiq.version>0.3.3</optiq.version>
-    <linq4j.version>0.1.1</linq4j.version>
-    <cascading.bind.version>1.0.0-wip-60</cascading.bind.version>
+    <optiq.version>0.4.5</optiq.version>
+    <linq4j.version>0.1.5</linq4j.version>
+    <cascading.bind.version>1.0.0-wip-71</cascading.bind.version>
   </properties>
   
   <dependencies>
@@ -65,6 +65,10 @@
         <exclusion>
           <groupId>org.jgrapht</groupId>
           <artifactId>jgrapht-jdk1.6</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.mongodb</groupId>
+          <artifactId>mongo-java-driver</artifactId>
         </exclusion>
       </exclusions>
     </dependency>
