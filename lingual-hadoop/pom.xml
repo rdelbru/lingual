@@ -17,6 +17,10 @@
   
   <name>lingual-hadoop</name>
   
+  <properties>
+    <hadoop.version>1.1.2</hadoop.version>
+  </properties>
+  
   <dependencies>
   
     <dependency>
@@ -41,7 +45,7 @@
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-core</artifactId>
-      <version>1.0.4</version>
+      <version>${hadoop.version}</version>
       <scope>provided</scope>
       <exclusions>
         <exclusion>
@@ -91,9 +95,10 @@
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-test</artifactId>
-      <version>1.0.4</version>
+      <version>${hadoop.version}</version>
       <scope>test</scope>
       <exclusions>
+        <!-- causes transient build maven failures, ftw -->
         <exclusion>
           <groupId>oro</groupId>
           <artifactId>oro</artifactId>
@@ -104,9 +109,25 @@
     <dependency>
       <groupId>commons-io</groupId>
       <artifactId>commons-io</artifactId>
-      <version>2.1</version>
+      <version>2.4</version>
       <scope>test</scope>
     </dependency>
+    
+    <!-- missed dep in hadoop, go figure -->
+    <dependency>
+		  <groupId>javax.ws.rs</groupId>
+		  <artifactId>jsr311-api</artifactId>
+		  <version>1.1.1</version>
+		  <scope>provided</scope>
+		</dependency>
+		
+		<!-- workaround for HADOOP-7461. -->
+		<dependency>
+		  <groupId>org.codehaus.jackson</groupId>
+		  <artifactId>jackson-mapper-asl</artifactId>
+		  <version>1.0.1</version>
+		  <scope>provided</scope>
+		</dependency>
     
   </dependencies>
 

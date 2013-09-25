@@ -10,7 +10,7 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <cascading.version>2.2.0-wip-51</cascading.version>
+    <cascading.version>2.2.0-wip-117</cascading.version>
   </properties>
 
   <build>
