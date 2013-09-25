@@ -28,6 +28,7 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Time;
+import java.util.HashMap;
 import java.util.Map;
 
 import cascading.lingual.LingualPlatformTestCase;
@@ -41,12 +42,15 @@ import cascading.tuple.Fields;
 import cascading.tuple.TupleEntry;
 import cascading.tuple.TupleEntryIterator;
 import cascading.tuple.type.CoercibleType;
+import com.google.common.base.Joiner;
 import com.google.common.base.Supplier;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Table;
 import com.google.common.collect.Tables;
 import net.hydromatic.optiq.impl.java.JavaTypeFactory;
 import org.eigenbase.sql.type.BasicSqlType;
+
+import static com.google.common.collect.Maps.newHashMap;
 
 /**
  *
@@ -59,7 +63,6 @@ public abstract class JDBCPlatformTestCase extends LingualPlatformTestCase
   public static final String TEST_ROOT = DATA_PATH + "expected/";
 
   private Connection connection;
-  private String resultPath;
 
   @Override
   public void setUp() throws Exception
@@ -75,36 +78,24 @@ public abstract class JDBCPlatformTestCase extends LingualPlatformTestCase
     return DebugLevel.NONE.toString();
     }
 
-  protected String getResultPath()
-    {
-    if( resultPath == null )
-      resultPath = getOutputPath( "jdbc/results/" + getTestName() );
-
-    return resultPath;
-    }
-
   protected abstract String getDefaultSchemaPath();
-
-  protected String getFlowPlanPath()
-    {
-    return getRootPath() + "/jdbc/dot/" + getTestName();
-    }
-
-  protected String getSQLPlanPath()
-    {
-    return getRootPath() + "/jdbc/optiq/" + getTestName();
-    }
 
   public String getConnectionString()
     {
     String platformName = getPlatformName();
-    String schemaPath = getDefaultSchemaPath();
-    String resultPath = getResultPath();
-    String flowPlanPath = getFlowPlanPath();
-    String sqlPlanPath = getSQLPlanPath();
-    String plannerDebug = getPlannerDebug();
 
-    return String.format( "%s:%s;schemas=%s;resultPath=%s;flowPlanPath=%s;sqlPlanPath=%s;plannerDebug=%s", URI, platformName, schemaPath, resultPath, flowPlanPath, sqlPlanPath, plannerDebug );
+    HashMap<Object, Object> values = newHashMap();
+
+    values.put( Driver.SCHEMAS_PROP, getDefaultSchemaPath() );
+    values.put( Driver.CATALOG_PROP, getCatalogPath() );
+    values.put( Driver.RESULT_PATH_PROP, getResultPath() );
+    values.put( Driver.FLOW_PLAN_PATH, getFlowPlanPath() );
+    values.put( Driver.SQL_PLAN_PATH_PROP, getSQLPlanPath() );
+    values.put( Driver.PLANNER_DEBUG, getPlannerDebug() );
+
+    String properties = Joiner.on( ';' ).withKeyValueSeparator( "=" ).join( values );
+
+    return String.format( "%s:%s;%s", URI, platformName, properties );
     }
 
   protected synchronized Connection getConnection() throws Exception
@@ -128,7 +119,7 @@ public abstract class JDBCPlatformTestCase extends LingualPlatformTestCase
       }
     catch( Exception exception )
       {
-      throw new RuntimeException( "cound not get connection", exception );
+      throw new RuntimeException( "could not get connection", exception );
       }
     }
 
@@ -168,7 +159,7 @@ public abstract class JDBCPlatformTestCase extends LingualPlatformTestCase
   protected void addTable( String schemaName, String tableName, String identifier, Fields fields, String protocolName, String formatName ) throws Exception
     {
     LingualConnection connection = (LingualConnection) getConnection();
-    connection.addTable( schemaName, tableName, identifier, fields, protocolName, formatName );
+    connection.addTableForTest( schemaName, tableName, identifier, fields, protocolName, formatName );
     }
 
   protected ResultSet executeSql( String sql ) throws Exception
@@ -197,12 +188,6 @@ public abstract class JDBCPlatformTestCase extends LingualPlatformTestCase
     assertTablesEqual( expectedTable, sqlQuery );
     }
 
-  protected void assertExecutes( String sqlQuery ) throws Exception
-    {
-    ResultSet result = executeSql( sqlQuery );
-    Table resultTable = createTable( result );
-    }
-
   protected void assertTableValuesEqual( Table expectedTable, String sqlQuery ) throws Exception
     {
     ResultSet result = executeSql( sqlQuery );
@@ -215,17 +200,6 @@ public abstract class JDBCPlatformTestCase extends LingualPlatformTestCase
     {
     ResultSet result = executeSql( sqlQuery );
     Table resultTable = createTable( result );
-
-    assertEquals( expectedTable, resultTable );
-    }
-
-  protected void assertNamedTablesEqual( String expectedTableName, String resultTableName ) throws Exception
-    {
-    TupleEntryIterator expectedIterator = getTable( expectedTableName );
-    TupleEntryIterator resultIterator = getTable( resultTableName );
-
-    Table expectedTable = createTable( expectedIterator );
-    Table resultTable = createTable( resultIterator );
 
     assertEquals( expectedTable, resultTable );
     }
@@ -253,12 +227,12 @@ public abstract class JDBCPlatformTestCase extends LingualPlatformTestCase
     assertEquals( expectedRowCount, rowCount );
     }
 
-  private Table<Integer, Comparable, Object> createTable( TupleEntryIterator entryIterator )
+  protected Table<Integer, Comparable, Object> createTable( TupleEntryIterator entryIterator )
     {
     return createTable( entryIterator, false );
     }
 
-  private Table<Integer, Comparable, Object> createTable( TupleEntryIterator entryIterator, boolean useOrdinal )
+  protected Table<Integer, Comparable, Object> createTable( TupleEntryIterator entryIterator, boolean useOrdinal )
     {
     Table<Integer, Comparable, Object> table = createNullableTable();
 
@@ -369,7 +343,7 @@ public abstract class JDBCPlatformTestCase extends LingualPlatformTestCase
     return table;
     }
 
-  private Table<Integer, Comparable, Object> createNullableTable()
+  protected Table<Integer, Comparable, Object> createNullableTable()
     {
     return Tables.newCustomTable(
       Maps.<Integer, Map<Comparable, Object>>newLinkedHashMap(),

@@ -22,6 +22,7 @@ package cascading.lingual.catalog;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
@@ -35,7 +36,7 @@ import static cascading.lingual.util.MiscCollection.makeInternedCache;
  * Class Format is an enhanced "enum" type that allows for runtime membership used for defining new "formats"
  * used during table and identifier runtime resolution.
  */
-public class Format implements Serializable
+public class Format implements Serializable, Comparable<Format>
   {
   private static final Function<String, Format> factory = new Function<String, Format>()
   {
@@ -59,6 +60,9 @@ public class Format implements Serializable
 
   public static List<Format> resolveFormats( List<String> formats )
     {
+    if( formats == null )
+      return Collections.EMPTY_LIST;
+
     List<Format> results = new ArrayList<Format>();
 
     for( String format : formats )
@@ -106,5 +110,14 @@ public class Format implements Serializable
   public int hashCode()
     {
     return name.hashCode();
+    }
+
+  @Override
+  public int compareTo( Format format )
+    {
+    if( format == null )
+      return Integer.MAX_VALUE;
+
+    return this.getName().compareTo( format.getName() );
     }
   }

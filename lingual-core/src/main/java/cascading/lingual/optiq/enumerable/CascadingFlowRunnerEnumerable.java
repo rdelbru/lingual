@@ -22,19 +22,27 @@ package cascading.lingual.optiq.enumerable;
 
 import java.io.IOException;
 import java.lang.reflect.Type;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 
+import cascading.bind.catalog.Resource;
 import cascading.bind.catalog.Stereotype;
 import cascading.flow.Flow;
+import cascading.flow.FlowListener;
 import cascading.flow.FlowStep;
 import cascading.flow.StepCounters;
 import cascading.flow.planner.PlannerException;
 import cascading.lingual.catalog.Format;
+import cascading.lingual.catalog.FormatProperties;
 import cascading.lingual.catalog.Protocol;
+import cascading.lingual.catalog.ProviderDef;
 import cascading.lingual.catalog.SchemaCatalog;
+import cascading.lingual.catalog.SchemaDef;
 import cascading.lingual.catalog.TableDef;
 import cascading.lingual.jdbc.Driver;
 import cascading.lingual.optiq.meta.Branch;
@@ -142,19 +150,35 @@ public class CascadingFlowRunnerEnumerable extends AbstractEnumerable implements
     Optiq.writeSQLPlan( properties, flowFactory.getName(), getVolcanoPlanner() );
 
     for( Ref head : branch.heads.keySet() )
-      flowFactory.addSource( head.name, getIdentifierFor( platformBroker, head ) );
-
-    if( branch.resultName != null )
       {
-      TableDef tableDef = platformBroker.getCatalog().resolveTableDef( branch.resultName );
-      flowFactory.addSink( tableDef.getName(), tableDef.getIdentifier() );
+      TableDef tableDefFor = getTableDefFor( platformBroker, head );
+      String[] jarPath = getJarPaths( tableDefFor );
+
+      flowFactory.addSource( head.name, tableDefFor, jarPath );
+      }
+
+    FlowListener flowListener = null;
+
+    if( branch.tailTableDef != null )
+      {
+      TableDef tableDef = branch.tailTableDef;
+      String[] jarPath = getJarPaths( tableDef );
+
+      flowFactory.addSink( tableDef.getName(), tableDef, jarPath );
       }
     else
       {
-      flowFactory.addSink( branch.current.getName(), platformBroker.getResultPath( flowFactory.getName() ) );
+      Resource<Protocol, Format, SinkMode> resource = createResultResource( platformBroker, flowFactory );
+
+      flowFactory.addSink( branch.current.getName(), resource );
+
+      if( platformBroker.hasResultSchemaDef() )
+        flowListener = new AddResultTableListener( platformBroker, flowFactory.getLingualConnection() );
       }
 
     String flowPlanPath = setFlowPlanPath( properties, flowFactory.getName() );
+
+    ClassLoader jarLoader = getJarClassLoader( platformBroker, flowFactory );
 
     Flow flow;
 
@@ -181,10 +205,18 @@ public class CascadingFlowRunnerEnumerable extends AbstractEnumerable implements
       flow.writeDOT( flowPlanPath );
       }
 
+    if( flowListener != null )
+      flow.addListener( flowListener );
+
     try
       {
       LOG.debug( "starting flow: {}", flow.getName() );
-      flow.complete(); // need to block
+
+      if( jarLoader != null )
+        Thread.currentThread().setContextClassLoader( jarLoader );
+
+      flow.complete(); // intentionally blocks
+
       LOG.debug( "completed flow: {}", flow.getName() );
       }
     catch( Exception exception )
@@ -197,6 +229,11 @@ public class CascadingFlowRunnerEnumerable extends AbstractEnumerable implements
         LOG.error( "with root cause", rootCause );
 
       throw new RuntimeException( "flow failed", exception );
+      }
+    finally
+      {
+      if( jarLoader != null )
+        Thread.currentThread().setContextClassLoader( jarLoader.getParent() );
       }
 
     LOG.debug( "reading results fields: {}", flow.getSink().getSinkFields().printVerbose() );
@@ -223,9 +260,60 @@ public class CascadingFlowRunnerEnumerable extends AbstractEnumerable implements
       return new TapArrayEnumerator( maxRows, types, flow.getFlowProcess(), flow.getSink() );
     }
 
+  private ClassLoader getJarClassLoader( PlatformBroker platformBroker, LingualFlowFactory flowFactory )
+    {
+    if( flowFactory.getJars().isEmpty() ) // will retrieve remote jars and make them local
+      return null;
+
+    String[] jarsArray = flowFactory.getJarsArray();
+
+    LOG.debug( "creating context loader for: {}", Arrays.toString( jarsArray ) );
+
+    return platformBroker.getUrlClassLoader( jarsArray );
+    }
+
+  private Resource<Protocol, Format, SinkMode> createResultResource( PlatformBroker platformBroker, LingualFlowFactory flowFactory )
+    {
+    SchemaDef schemaDef = platformBroker.getResultSchemaDef();
+    Protocol protocol = schemaDef.findDefaultProtocol();
+    Format format = schemaDef.findDefaultFormat();
+
+    String resultPath;
+
+    if( schemaDef.isRoot() )
+      resultPath = platformBroker.getResultPath( flowFactory.getName() );
+    else
+      resultPath = platformBroker.makePath( schemaDef.getIdentifier(), flowFactory.getName() );
+
+    String extension = FormatProperties.findExtensionFor( schemaDef, format );
+
+    if( extension != null )
+      resultPath += extension;
+
+    return new Resource<Protocol, Format, SinkMode>( resultPath, protocol, format, SinkMode.REPLACE );
+    }
+
+  private String[] getJarPaths( TableDef tableDef )
+    {
+    Set<String> jars = new HashSet<String>();
+    String rootPath = getPlatformBroker().getFullProviderPath();
+
+    ProviderDef protocolProvider = tableDef.getProtocolProvider();
+
+    if( protocolProvider != null && protocolProvider.getIdentifier() != null )
+      jars.add( getPlatformBroker().makePath( rootPath, protocolProvider.getIdentifier() ) );
+
+    ProviderDef formatProvider = tableDef.getFormatProvider();
+
+    if( formatProvider != null && formatProvider.getIdentifier() != null )
+      jars.add( getPlatformBroker().makePath( rootPath, formatProvider.getIdentifier() ) );
+
+    return jars.toArray( new String[ jars.size() ] );
+    }
+
   private String getIdentifierFor( PlatformBroker platformBroker, Ref head )
     {
-    String identifier = head.identifier;
+    String identifier = head.tableDef != null ? head.tableDef.getIdentifier() : null;
 
     if( identifier == null )
       identifier = platformBroker.getTempPath( head.name );
@@ -233,14 +321,24 @@ public class CascadingFlowRunnerEnumerable extends AbstractEnumerable implements
     return identifier;
     }
 
+  private TableDef getTableDefFor( PlatformBroker platformBroker, Ref head )
+    {
+    if( head.tableDef != null )
+      return head.tableDef;
+
+    String identifier = platformBroker.getTempPath( head.name );
+
+    return new TableDef( platformBroker.getCatalog().getRootSchemaDef(), head.name, identifier );
+    }
+
   private void writeValuesTuple( PlatformBroker platformBroker, Ref head ) throws IOException
     {
     SchemaCatalog catalog = platformBroker.getCatalog();
     String identifier = getIdentifierFor( platformBroker, head );
 
-    createTableFor( catalog, head, identifier );
+    TableDef tableDef = createTableFor( catalog, head, identifier );
 
-    TupleEntryCollector collector = catalog.createTapFor( identifier, SinkMode.KEEP ).openForWrite( platformBroker.getFlowProcess() );
+    TupleEntryCollector collector = catalog.createTapFor( tableDef, SinkMode.KEEP ).openForWrite( platformBroker.getFlowProcess() );
 
     for( List<RexLiteral> values : head.tuples )
       collector.add( EnumerableUtil.createTupleFrom( values ) );
@@ -248,7 +346,7 @@ public class CascadingFlowRunnerEnumerable extends AbstractEnumerable implements
     collector.close();
     }
 
-  private void createTableFor( SchemaCatalog catalog, Ref head, String identifier )
+  private TableDef createTableFor( SchemaCatalog catalog, Ref head, String identifier )
     {
     String stereotypeName = head.name;
     Stereotype stereotype = catalog.getStereoTypeFor( null, head.fields );
@@ -261,7 +359,9 @@ public class CascadingFlowRunnerEnumerable extends AbstractEnumerable implements
     Protocol protocol = catalog.getRootSchemaDef().getDefaultProtocol();
     Format format = catalog.getRootSchemaDef().getDefaultFormat();
 
-    catalog.createTableDefFor( null, head.name, identifier, stereotypeName, protocol, format );
+    String tableName = catalog.createTableDefFor( null, head.name, identifier, stereotypeName, protocol, format );
+
+    return catalog.getSchemaDef( null ).getTable( tableName );
     }
 
   private String setFlowPlanPath( Properties properties, String name )

@@ -22,17 +22,22 @@ package cascading.lingual.catalog;
 
 import java.io.IOException;
 import java.io.PrintStream;
+import java.util.Map;
 import java.util.Properties;
 
 import cascading.lingual.catalog.target.DDLTarget;
 import cascading.lingual.catalog.target.FormatTarget;
 import cascading.lingual.catalog.target.ProtocolTarget;
+import cascading.lingual.catalog.target.ProviderTarget;
+import cascading.lingual.catalog.target.RepoTarget;
 import cascading.lingual.catalog.target.SchemaTarget;
 import cascading.lingual.catalog.target.StereotypeTarget;
 import cascading.lingual.catalog.target.TableTarget;
 import cascading.lingual.common.Main;
+import cascading.lingual.common.Target;
 import cascading.lingual.platform.PlatformBroker;
 import cascading.lingual.platform.PlatformBrokerFactory;
+import com.google.common.base.Strings;
 import com.google.common.base.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,6 +48,7 @@ import org.slf4j.LoggerFactory;
 public class Catalog extends Main<CatalogOptions>
   {
   private static final Logger LOG = LoggerFactory.getLogger( Catalog.class );
+  private Properties configProperties;
 
   public static void main( String[] args ) throws IOException
     {
@@ -79,7 +85,7 @@ public class Catalog extends Main<CatalogOptions>
   public boolean execute( String[] args ) throws IOException
     {
     if( !parse( args ) )
-      return true;
+      return false;
 
     setVerbose();
 
@@ -97,6 +103,10 @@ public class Catalog extends Main<CatalogOptions>
       {
       getOptions().printInvalidOptionMessage( getErrPrintStream(), exception );
       }
+    catch( IllegalStateException exception )
+      {
+      getOptions().printErrorMessage( getErrPrintStream(), exception );
+      }
     catch( Throwable throwable )
       {
       printFailure( getErrPrintStream(), throwable );
@@ -105,32 +115,65 @@ public class Catalog extends Main<CatalogOptions>
     return false;
     }
 
+  private Properties getConfigProperties()
+    {
+    if( configProperties != null )
+      return configProperties;
+
+    configProperties = new Properties( getProperties() );
+
+    for( Map.Entry<String, String> entry : getOptions().getConfig().entrySet() )
+      configProperties.setProperty( entry.getKey(), Strings.emptyToNull( entry.getValue() ) );
+
+    return configProperties;
+    }
+
   @Override
   protected boolean handle() throws IOException
     {
-    PlatformBroker platformBroker = PlatformBrokerFactory.createPlatformBroker( getOptions().getPlatform(), properties );
+    PlatformBroker platformBroker = PlatformBrokerFactory.createPlatformBroker( getOptions().getPlatform(), getConfigProperties() );
+    // force a read to init dynamic enums.
+    platformBroker.getCatalog();
 
     if( getOptions().isInit() )
-      return metaDataPath( platformBroker );
+      return init( platformBroker );
+
+    if( !platformBroker.confirmMetaData() )
+      {
+      getPrinter().printFormatted( "path: %s has not been initialized, use --init", platformBroker.getFullMetadataPath() );
+      return false;
+      }
 
     boolean doNotWrite = false;
 
     try
       {
-      if( getOptions().isDDL() )
-        return handleDDL( platformBroker );
-      if( getOptions().isListSchemas() || getOptions().isSchemaActions() )
-        return handleSchema( platformBroker );
-      else if( getOptions().isListTables() || getOptions().isTableActions() )
-        return handleTable( platformBroker );
-      else if( getOptions().isListStereotypes() || getOptions().isStereotypeActions() )
-        return handleStereotype( platformBroker );
-      else if( getOptions().isListFormats() || getOptions().isFormatActions() )
-        return handleFormat( platformBroker );
-      else if( getOptions().isListProtocols() || getOptions().isProtocolActions() )
-        return handleProtocol( platformBroker );
+      Target target = null;
 
-      getOptions().printInvalidOptionMessage( getErrPrintStream(), "no command given: missing --add, --rename, --remove, --update" );
+      if( getOptions().isDDL() )
+        target = new DDLTarget( getPrinter(), getOptions() );
+      if( getOptions().isListSchemas() || getOptions().isSchemaActions() )
+        target = new SchemaTarget( getPrinter(), getOptions() );
+      else if( getOptions().isListTables() || getOptions().isTableActions() )
+        target = new TableTarget( getPrinter(), getOptions() );
+      else if( getOptions().isListStereotypes() || getOptions().isStereotypeActions() )
+        target = new StereotypeTarget( getPrinter(), getOptions() );
+      else if( getOptions().isListFormats() || getOptions().isFormatActions() )
+        target = new FormatTarget( getPrinter(), getOptions() );
+      else if( getOptions().isListProtocols() || getOptions().isProtocolActions() )
+        target = new ProtocolTarget( getPrinter(), getOptions() );
+      else if( getOptions().isListProviders() || getOptions().isProviderActions() )
+        target = new ProviderTarget( getPrinter(), getOptions() );
+      else if( getOptions().isListRepos() || getOptions().isRepoActions() )
+        target = new RepoTarget( getPrinter(), getOptions() );
+
+      if( target == null )
+        return getOptions().printInvalidOptionMessage( getErrPrintStream(), "no command given: missing --add, --rename, --remove, --update, --validate, --show" );
+
+      if( !( target instanceof ProtocolTarget || target instanceof FormatTarget ) && getOptions().hasProperties() )
+        return getOptions().printInvalidOptionMessage( getErrPrintStream(), "--properties may only be added to formats or protocols via --add or --update" );
+
+      return target.handle( platformBroker );
       }
     catch( Throwable throwable )
       {
@@ -141,54 +184,26 @@ public class Catalog extends Main<CatalogOptions>
     finally
       {
       LOG.info( "catalog loaded: {}", platformBroker.catalogLoaded() );
+
       if( !doNotWrite && platformBroker.catalogLoaded() )
         platformBroker.writeCatalog();
       }
-
-    return false;
     }
 
-  private boolean handleDDL( PlatformBroker platformBroker )
-    {
-    return new DDLTarget( getPrinter(), getOptions() ).handle( platformBroker );
-    }
-
-  private boolean handleSchema( PlatformBroker platformBroker )
-    {
-    return new SchemaTarget( getPrinter(), getOptions() ).handle( platformBroker );
-    }
-
-  private boolean handleTable( PlatformBroker platformBroker )
-    {
-    return new TableTarget( getPrinter(), getOptions() ).handle( platformBroker );
-    }
-
-  private boolean handleStereotype( PlatformBroker platformBroker )
-    {
-    return new StereotypeTarget( getPrinter(), getOptions() ).handle( platformBroker );
-    }
-
-  private boolean handleFormat( PlatformBroker platformBroker )
-    {
-    return new FormatTarget( getPrinter(), getOptions() ).handle( platformBroker );
-    }
-
-  protected boolean handleProtocol( PlatformBroker platformBroker )
-    {
-    return new ProtocolTarget( getPrinter(), getOptions() ).handle( platformBroker );
-    }
-
-  private boolean metaDataPath( PlatformBroker platformBroker )
+  private boolean init( PlatformBroker platformBroker )
     {
     LOG.debug( "catalog: init" );
 
-    boolean result = platformBroker.initializeMetaData();
+    boolean success = platformBroker.initializeMetaData();
 
-    if( result )
-      getPrinter().print( "path: %s has already been initialized", platformBroker.getFullMetadataPath() );
+    if( success )
+      platformBroker.writeCatalog();
+
+    if( !success )
+      getPrinter().printFormatted( "path: %s has already been initialized", platformBroker.getFullMetadataPath() );
     else
-      getPrinter().print( "path: %s has been initialized", platformBroker.getFullMetadataPath() );
+      getPrinter().printFormatted( "path: %s has been initialized", platformBroker.getFullMetadataPath() );
 
-    return !result;
+    return success;
     }
   }

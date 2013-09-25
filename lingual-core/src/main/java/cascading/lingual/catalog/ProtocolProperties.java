@@ -29,20 +29,21 @@ import java.util.Map;
  */
 public class ProtocolProperties extends SchemaProperties
   {
-  public static final String URIS = "protocol.uris";
+  public static final String SCHEMES = "schemes";
 
   public static Protocol findProtocolFor( SchemaDef schemaDef, String identifier )
     {
     if( schemaDef == null )
       return null;
 
-    Map<Protocol, List<String>> uris = schemaDef.getProtocolProperties( URIS );
+    Map<Protocol, List<String>> uris = schemaDef.findPropertyByProtocols( SCHEMES );
 
     URI uri = URI.create( identifier );
+    String scheme = uri.getScheme();
 
     for( Map.Entry<Protocol, List<String>> entry : uris.entrySet() )
       {
-      if( entry.getValue().contains( uri.getScheme() ) )
+      if( entry.getValue().contains( scheme ) )
         return entry.getKey();
       }
 

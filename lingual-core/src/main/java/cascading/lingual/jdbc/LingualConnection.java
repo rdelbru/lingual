@@ -83,12 +83,15 @@ public abstract class LingualConnection implements Connection
       }
     catch( SQLException sqlException )
       {
-      String providerError = String.format( "connection failed: %s ( provider %s error code %d).", sqlException.getMessage(), parent.getMetaData().getDatabaseProductName(), sqlException.getErrorCode() );
+      String providerError = String.format( "connection failed: %s (provider %s error code %d).", sqlException.getMessage(), getMetaData().getDatabaseProductName(), sqlException.getErrorCode() );
+
       LOG.error( providerError );
-      LOG.error( "\tconnection URL: " + parent.getMetaData().getURL() );
+      LOG.error( "\tconnection URL: " + getMetaData().getURL() );
+
       if( platformBroker != null )
         {
         LOG.error( "\tread catalog from: " + platformBroker.getFullCatalogPath() );
+
         if( platformBroker.getCatalog() != null && platformBroker.getCatalog().getRootSchemaDef() != null )
           LOG.error( "\tused root schema from: " + platformBroker.getCatalog().getRootSchemaDef().getIdentifier() );
         else
@@ -98,6 +101,7 @@ public abstract class LingualConnection implements Connection
         {
         LOG.error( "\tunable to create platform " + getStringProperty( PLATFORM_PROP ) + ": {}", sqlException.getMessage() );
         }
+
       throw sqlException;
       }
     }
@@ -120,7 +124,7 @@ public abstract class LingualConnection implements Connection
       }
     else
       {
-      LOG.info( "using default schema." );
+      LOG.info( "using default schema" );
       }
 
     platformBroker = PlatformBrokerFactory.createPlatformBroker( platformName, properties );
@@ -130,7 +134,17 @@ public abstract class LingualConnection implements Connection
 
     setAutoCommit( !isCollectorCacheEnabled() ); // this forces the default to true
 
-    platformBroker.startConnection( this );
+    try
+      {
+      platformBroker.startConnection( this );
+      }
+    catch( Exception exception )
+      {
+      if( exception instanceof SQLException )
+        throw (SQLException) exception;
+      else
+        throw new SQLException( "failed starting connection", exception );
+      }
     }
 
   protected boolean isCollectorCacheEnabled()
@@ -165,17 +179,6 @@ public abstract class LingualConnection implements Connection
     return properties.getProperty( propertyName );
     }
 
-  public void addTable( String schemaName, String tableName, String identifier, Fields fields, String protocolName, String formatName ) throws SQLException
-    {
-    SchemaCatalog catalog = platformBroker.getCatalog();
-
-    if( catalog.getSchemaDef( schemaName ) == null )
-      catalog.addSchemaDef( schemaName, protocolName, formatName );
-
-    catalog.createTableDefFor( schemaName, tableName, identifier, fields, protocolName, formatName );
-    catalog.addSchemasTo( this );
-    }
-
   public void trackFlow( Flow flow )
     {
     trackedFlows.add( flow );
@@ -192,7 +195,7 @@ public abstract class LingualConnection implements Connection
     if( trackedFlows.size() == 1 )
       return trackedFlows.iterator().next();
 
-    LOG.error( "unable to determine single current flow. found {} flows.", trackedFlows.size() );
+    LOG.error( "unable to determine single current flow. found {} flows", trackedFlows.size() );
 
     return null;
     }
@@ -233,9 +236,14 @@ public abstract class LingualConnection implements Connection
     parent.setAutoCommit( autoCommit );
 
     if( autoCommit )
+      {
+      platformBroker.closeCollectorCache();
       platformBroker.disableCollectorCache();
+      }
     else
+      {
       platformBroker.enableCollectorCache();
+      }
     }
 
   @Override
@@ -263,6 +271,8 @@ public abstract class LingualConnection implements Connection
   @Override
   public void close() throws SQLException
     {
+    // force a re-read of the catalog when returned to a JDBC pool.
+    platformBroker.getCatalog().addSchemasTo( this );
     try
       {
       parent.close();
@@ -330,7 +340,8 @@ public abstract class LingualConnection implements Connection
   @Override
   public void clearWarnings() throws SQLException
     {
-    parent.clearWarnings();
+    // not currently supported by optiq
+    //parent.clearWarnings();
     }
 
   @Override
@@ -505,6 +516,18 @@ public abstract class LingualConnection implements Connection
     return parent.createStruct( typeName, attributes );
     }
 
+  // method to simplify testing. since this isn't part of the Connection interface using this
+  // for features can break JDBC compatibility.
+  public void addTableForTest( String schemaName, String tableName, String identifier, Fields fields, String protocolName, String formatName ) throws SQLException
+    {
+    SchemaCatalog catalog = platformBroker.getCatalog();
+    if( catalog.getSchemaDef( schemaName ) == null )
+      catalog.addSchemaDef( schemaName, protocolName, formatName );
+
+    catalog.createTableDefFor( schemaName, tableName, identifier, fields, protocolName, formatName );
+    catalog.addSchemasTo( this );
+    }
+
   public <T> T unwrap( Class<T> iface ) throws SQLException
     {
     if( iface.isInstance( this ) )
@@ -520,4 +543,5 @@ public abstract class LingualConnection implements Connection
     {
     return iface.isInstance( this ) || iface.isInstance( parent );
     }
+
   }

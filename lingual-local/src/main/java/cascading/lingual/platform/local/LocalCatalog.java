@@ -20,11 +20,6 @@
 
 package cascading.lingual.platform.local;
 
-import java.util.Collections;
-import java.util.List;
-
-import cascading.bind.catalog.handler.FormatHandler;
-import cascading.bind.catalog.handler.ProtocolHandler;
 import cascading.lingual.catalog.Format;
 import cascading.lingual.catalog.Protocol;
 import cascading.lingual.catalog.SchemaCatalog;
@@ -34,23 +29,18 @@ import cascading.lingual.catalog.SchemaCatalog;
  */
 public class LocalCatalog extends SchemaCatalog
   {
-  public static final Protocol DEFAULT_PROTOCOL = LocalDefaultProtocolHandler.FILE;
-  public static final Format DEFAULT_FORMAT = LocalDefaultFormatHandler.TCSV;
+  public static final Protocol FILE = Protocol.getProtocol( "file" );
+
+  public static final Format TCSV = Format.getFormat( "tcsv" );
+  public static final Format CSV = Format.getFormat( "csv" );
+  public static final Format TSV = Format.getFormat( "tsv" );
+  public static final Format TTSV = Format.getFormat( "ttsv" );
+
+  public static final Protocol DEFAULT_PROTOCOL = FILE;
+  public static final Format DEFAULT_FORMAT = TCSV;
 
   public LocalCatalog()
     {
     super( DEFAULT_PROTOCOL, DEFAULT_FORMAT );
-    }
-
-  @Override
-  protected List<ProtocolHandler<Protocol, Format>> createProtocolHandlers()
-    {
-    return Collections.<ProtocolHandler<Protocol, Format>>singletonList( new LocalDefaultProtocolHandler() );
-    }
-
-  @Override
-  protected List<FormatHandler<Protocol, Format>> createFormatHandlers()
-    {
-    return Collections.<FormatHandler<Protocol, Format>>singletonList( new LocalDefaultFormatHandler() );
     }
   }

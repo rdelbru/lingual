@@ -27,14 +27,42 @@ evaluationDependsOn( ':lingual-hadoop' )
 
 dependencies {
 
-  providedCompile project( ':lingual-core' )
+  providedCompile project( ':lingual-core' ) // provided by platform/jdbc drivers
 
-  compile group: 'net.sf.jopt-simple', name: 'jopt-simple', version: '4.4'
-  compile group: 'sqlline', name: 'sqlline', version: '1.1.2'
+  compile group: 'net.sf.jopt-simple', name: 'jopt-simple', version: joptVersion
+  compile group: 'sqlline', name: 'sqlline', version: sqllineVersion
+  compile group: 'org.apache.ivy', name: 'ivy', version: ivyVersion
 
-  runtime group: 'jline', name: 'jline', version: '2.0.10'
+  runtime group: 'jline', name: 'jline', version: jlineVersion
 
-  providedCompile group: 'org.slf4j', name: 'slf4j-api', version: '1.6.1'
+  providedCompile group: 'org.slf4j', name: 'slf4j-api', version: slf4jVersion
+
+  testCompile project( ':lingual-core' ) // provided by platform/jdbc drivers
+}
+
+jar {
+  ext.finalName = jar.archivePath
+  classifier = 'unshaded'
+}
+
+jar << {
+  project.ant {
+    taskdef( name: "jarjar", classname: "com.tonicsystems.jarjar.JarJarTask", classpath: configurations.jarjar.asPath )
+
+    jarjar( jarfile: finalName ) {
+      zipfileset( src: jar.archivePath )
+
+      neverIncludePackages.each { omitClass ->
+        zap pattern: omitClass
+      }
+      unshadeableDependencies.each { retainClass ->
+        rule pattern: retainClass, result: "@0"
+      }
+      shadeableDependencies.each { shadeClass ->
+        rule pattern: shadeClass, result: "${shadePackagePrefix}@0"
+      }
+    }
+  }
 }
 
 task assembleDist( dependsOn: jar ) {
@@ -53,7 +81,7 @@ assembleDist << {
   copy {
     into "${distDir}/lib"
     from configurations.runtime
-    from jar.archivePath
+    from jar.finalName
   }
 
   copy {
@@ -76,10 +104,6 @@ assembleDist << {
   }
 
   copy {
-    into "${distDir}/docs"
-    from 'docs/'
-  }
-  copy {
     fileMode = 0755
     into "${distDir}/bin/"
     from( 'src/dist/bin/' ) {
@@ -95,14 +119,14 @@ assembleDist << {
 task packageDist( type: Tar, dependsOn: assembleDist ) {
   description = "package current build, does not run tests"
 
-  destinationDir = file( s3Upload.source )
+  destinationDir = file( s3UploadArtifacts.source )
   compression = "GZIP"
 
   into( baseName ) {
     from assembleDist.distDir
   }
 
-  s3Upload.dependsOn packageDist
+  s3UploadArtifacts.dependsOn packageDist
 }
 
 packageDist << {
@@ -114,10 +138,10 @@ packageDist << {
               'majorVersion': majorVersion.toString()
       ] )
     }
-    into s3Upload.source
+    into s3UploadArtifacts.source
   }
 
-  file( "${s3Upload.source}/latest.txt" ).write( "http://${s3Upload.destination}${archiveName}" )
+  file( "${s3UploadArtifacts.source}/latest.txt" ).write( "http://${s3UploadArtifacts.destination}${archiveName}" )
 }
 
 uploadArchives.enabled = false

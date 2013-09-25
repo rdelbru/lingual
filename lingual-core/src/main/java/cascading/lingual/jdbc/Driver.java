@@ -78,11 +78,14 @@ public class Driver extends UnregisteredDriver
   private final Factory factory = instantiateFactory();
 
   public static final String PLATFORM_PROP = "platform";
-  public static final String CATALOG_PROP = "catalog";
+  public static final String CATALOG_PROP = "catalog"; // root directory of catalog data
+  //  public static final String CONFIG_PROP = "config";
   public static final String SCHEMA_PROP = "schema";
   public static final String SCHEMAS_PROP = "schemas";
   public static final String TABLES_PROP = "tables";
+  public static final String TAGS_PROP = "tags";
   public static final String VERBOSE_PROP = "verbose";
+  public static final String RESULT_SCHEMA_PROP = "resultSchema";
   public static final String RESULT_PATH_PROP = "resultPath";
   public static final String MAX_ROWS = "maxRows";
   public static final String FLOW_PLAN_PATH = "flowPlanPath";
@@ -108,7 +111,7 @@ public class Driver extends UnregisteredDriver
       {
       DriverManager.registerDriver( this );
       }
-    catch( SQLException exception )
+    catch( Exception exception )
       {
       LOG.error( "error occurred while registering JDBC driver " + this + ": " + exception.toString() );
       }
@@ -147,7 +150,8 @@ public class Driver extends UnregisteredDriver
     {
     if( !acceptsURL( url ) )
       {
-      LOG.error( "invalid connection url {}", url );
+      // DriverManager walks all the drivers and attempts to connect, so don't report a nasty error
+      LOG.debug( "invalid connection url {}", url );
       return null;
       }
 

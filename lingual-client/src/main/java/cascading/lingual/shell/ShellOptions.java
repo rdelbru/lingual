@@ -21,6 +21,7 @@
 package cascading.lingual.shell;
 
 import java.util.List;
+import java.util.Properties;
 
 import cascading.lingual.common.Options;
 import cascading.lingual.jdbc.Driver;
@@ -36,11 +37,13 @@ public class ShellOptions extends Options
   private final OptionSpec<String> password;
   private final OptionSpec<String> schema;
   private final OptionSpec<String> schemas;
+  private final OptionSpec<String> resultSchema;
   private final OptionSpec<String> resultPath;
   private final OptionSpec<String> flowPlanPath;
   private final OptionSpec<String> sqlPlanPath;
   private final OptionSpec<String> sqlFile;
   private final OptionSpec<Integer> maxRows;
+  private final OptionSpec<String> tags;
 
   public ShellOptions()
     {
@@ -50,11 +53,14 @@ public class ShellOptions extends Options
     password = parser.accepts( "password", "password of remote user" )
       .withRequiredArg();
 
-    schema = parser.accepts( "schema", "name of current schema" )
+    schema = parser.accepts( "schema", "name of schema to make default" )
       .withRequiredArg();
 
-    schemas = parser.accepts( "schemas", "platform path for each schema to use" )
+    schemas = parser.accepts( "schemas", "platform path for each schema to add" )
       .withRequiredArg().withValuesSeparatedBy( ',' );
+
+    resultSchema = parser.accepts( "resultSchema", "the schema to store SELECT query results into" )
+      .withOptionalArg().defaultsTo( "results" ).describedAs( "schema name" );
 
     resultPath = parser.accepts( "resultPath", "platform path to store results of SELECT queries" )
       .withOptionalArg().defaultsTo( "results" ).describedAs( "directory" );
@@ -63,16 +69,19 @@ public class ShellOptions extends Options
       .withOptionalArg().defaultsTo( "flowPlanFiles" ).describedAs( "directory" );
 
     sqlPlanPath = parser.accepts( "sqlPlanPath", "platform path to write SQL plan files" )
-      .withOptionalArg().defaultsTo( "sqlPlanPath" ).describedAs( "directory" );
+      .withOptionalArg().defaultsTo( "sqlPlanFiles" ).describedAs( "directory" );
 
-    sqlFile = parser.accepts( "sql", "file with sql commands to execute" )
+    sqlFile = parser.accepts( "sql", "file with sql commands to execute, '-' for stdin" )
       .withRequiredArg().describedAs( "filename" );
 
     maxRows = parser.accepts( "maxRows", "number of results to limit. 0 for unlimited" )
       .withRequiredArg().ofType( Integer.TYPE ).defaultsTo( 10000 ).describedAs( "number of records" );
+
+    tags = parser.accepts( "tags", "tags to annotate running processes with" )
+      .withRequiredArg().withValuesSeparatedBy( ',' );
     }
 
-  public String createJDBCUrl()
+  public String createJDBCUrl( Properties properties )
     {
     StringBuilder builder = new StringBuilder( "jdbc:lingual:" );
 
@@ -81,48 +90,64 @@ public class ShellOptions extends Options
     if( getSchema() != null )
       builder.append( ":" ).append( getSchema() );
 
-    if( !getSchemas().isEmpty() )
-      {
-      builder
-        .append( ";" ).append( Driver.SCHEMAS_PROP ).append( "=" )
-        .append( Util.join( getSchemas(), "," ) );
-      }
+    addProperty( builder, Driver.CATALOG_PROP, properties, null ); // currently for testing
 
-    if( getResultPath() != null ) // always override
-      {
-      builder
-        .append( ";" ).append( Driver.RESULT_PATH_PROP ).append( "=" )
-        .append( getResultPath() );
-      }
+    addProperty( builder, Driver.SCHEMAS_PROP, properties, Util.join( getSchemas(), "," ) );
 
-    if( getMaxRows() != 0 ) // always override
-      {
-      builder
-        .append( ";" ).append( Driver.MAX_ROWS ).append( "=" )
-        .append( getMaxRows() );
-      }
+    addProperty( builder, Driver.RESULT_SCHEMA_PROP, properties, getResultSchema() );
 
-    if( hasFlowPlanPath() && getFlowPlanPath() != null )
-      {
-      builder
-        .append( ";" ).append( Driver.FLOW_PLAN_PATH ).append( "=" )
-        .append( getFlowPlanPath() );
-      }
+    addProperty( builder, Driver.RESULT_PATH_PROP, properties, getResultPath() );
 
-    if( hasSQLPlanPath() && getSQLPlanPath() != null )
-      {
-      builder
-        .append( ";" ).append( Driver.SQL_PLAN_PATH_PROP ).append( "=" )
-        .append( getSQLPlanPath() );
-      }
+    addProperty( builder, Driver.MAX_ROWS, properties, stringOrNull( getMaxRows() ) );
+
+    if( hasFlowPlanPath() )
+      addProperty( builder, Driver.FLOW_PLAN_PATH, properties, getFlowPlanPath() );
+
+    if( hasSQLPlanPath() )
+      addProperty( builder, Driver.SQL_PLAN_PATH_PROP, properties, getSQLPlanPath() );
+
+    if( hasTags() )
+      addProperty( builder, Driver.TAGS_PROP, properties, Util.join( getTags(), "," ) );
 
     if( getSqlFile() != null )
-      {
-      builder
-        .append( ";" ).append( Driver.COLLECTOR_CACHE_PROP ).append( "=true" );
-      }
+      builder.append( ";" ).append( Driver.COLLECTOR_CACHE_PROP ).append( "=true" );
+
+    if( hasConfig() )
+      builder.append( ";" ).append( getConfigString() );
+
+    // pass through from tests
+    if( getProperty( "urlProperties", properties, null ) != null )
+      builder.append( ";" ).append( getProperty( "urlProperties", properties, null ) );
 
     return builder.toString();
+    }
+
+  private void addProperty( StringBuilder builder, String property, Properties properties, String value )
+    {
+    String actual = getProperty( property, properties, value );
+
+    if( actual == null )
+      return;
+
+    builder
+      .append( ";" ).append( property ).append( "=" )
+      .append( actual );
+    }
+
+  private String getProperty( String property, Properties properties, String value )
+    {
+    if( value != null && !value.isEmpty() )
+      return value;
+
+    return properties.getProperty( property );
+    }
+
+  private String stringOrNull( Object value )
+    {
+    if( value == null )
+      return null;
+
+    return value.toString();
     }
 
   /////
@@ -157,6 +182,11 @@ public class ShellOptions extends Options
     return optionSet.valuesOf( schemas );
     }
 
+  public String getResultSchema()
+    {
+    return optionSet.valueOf( resultSchema );
+    }
+
   public String getResultPath()
     {
     return optionSet.valueOf( resultPath );
@@ -187,9 +217,22 @@ public class ShellOptions extends Options
     return optionSet.valueOf( sqlFile );
     }
 
-  public int getMaxRows()
+  public Integer getMaxRows()
     {
+    if( optionSet.valueOf( maxRows ) == null || optionSet.valueOf( maxRows ) == 0 )
+      return null;
+
     return optionSet.valueOf( maxRows );
+    }
+
+  public boolean hasTags()
+    {
+    return optionSet.has( tags );
+    }
+
+  public List<String> getTags()
+    {
+    return optionSet.valuesOf( tags );
     }
 
   /////

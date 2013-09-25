@@ -1,0 +1,208 @@
+[id="getting-started"]
+## Getting Started
+
+The best way to learn Lingual is to download sample data and run a few queries.
+
+### Getting Data and Setting up Lingual
+
+After <<install,installing Lingual>>, in a new working directory download sample data:
+
+    > wget http://data.cascading.org/employees.tgz
+    > tar -xzf employees.tgz
+
+Next download a simple shell script to register the employee data with Lingual against the `platform` Lingual
+will be executing against, either `local` or `hadoop`. `local` means data is read from the local filesystem, and the
+queries are run in local memory. `hadoop` means data is read from HDFS and MapReduce jobs are run on the cluster to
+execute the queries.
+
+If `local` call:
+
+    > export LINGUAL_PLATFORM=local
+
+Or if `hadoop`, call:
+
+    > export LINGUAL_PLATFORM=hadoop
+    > export HADOOP_HOME=/path/to/hadoop
+    > hadoop fs -copyFromLocal employees employees
+
+Then call:
+
+    > wget http://data.cascading.org/create-employees.sh
+    > chmod a+x create-employees.sh
+    > ./create-employees.sh
+
+### The create-employees.sh script
+
+The `create-employees.sh` script simply calls `lingual catalog` to register each file as a table, and the columns and
+types in each file on the platform set by `LINGUAL_PLATFORM`.
+
+For example, to register the `employees/employees.csv` file as the `EMPLOYEES.EMPLOYEES` table,
+first the *schema* `EMPLOYEES` must be created:
+
+    lingual catalog --schema EMPLOYEES --add
+
+The *stereotype* must be created, named `employees` (to keep things simple):
+
+    lingual catalog --schema EMPLOYEES --stereotype employees --add \
+      --columns EMP_NO,BIRTH_DATE,FIRST_NAME,LAST_NAME,GENDER,HIRE_DATE \
+      --types int,date,string,string,string,string
+
+Then the `EMPLOYEES` table must be created:
+
+    lingual catalog --schema EMPLOYEES --table EMPLOYEES --stereotype employees \
+      --add ${BASEDIR}/employees/employees.csv
+
+Separating *stereotype* from *table* allows the columns and type definitions to be shared across tables without
+having to re-register the redundant data.
+
+Note that `.csv` file support is built in to Lingual, so there is no need to register or create that data *format*.
+
+### Running queries
+
+The Lingual Shell is simply a command shell that uses the Lingual JDBC Driver to execute SQL statements against
+the configured platform.
+
+To start the shell, run:
+
+    > lingual shell
+
+From within the shell, execute:
+
+    > select * from employees.titles;
+
+The Lingual query planner detects that we are effectively only reading the file with this query, so the results begin
+to display immediately.
+
+Alternately, run:
+
+    > select * from employees.titles where title = 'Engineer';
+
+This will result in an actual MapReduce job being submitted, if using the Hadoop platform. You can verify this on the
+JobTracker web interface.
+
+What actually happened under the hood is that a new Cascading Flow was created by the JDBC Driver and run to select
+all the `employees` records with the given `title`, which were placed, by default, into a file in the `./results/`
+directory, either on the local disk or in your user directory on HDFS.
+
+A JDBC ResultSet was then created to read the results file where the "max rows" was set to 10,000 (the default). Since
+Hadoop generally has really large files, this seems like a reasonable limit. See the command line args to change.
+
+The file in the `./results/` directory is a valid data file, but should be deleted if you want to reclaim the
+space it is taking up.
+
+To verify on Hadoop, run:
+
+    > hadoop fs -lsr results
+
+Resulting in something like this:
+
+    -rw-r--r--   3 vagrant supergroup    2165628 2013-07-24 21:01 /user/vagrant/results/20130724-210146-65127B6700/part-00000
+    -rw-r--r--   3 vagrant supergroup    2169890 2013-07-24 21:01 /user/vagrant/results/20130724-210146-65127B6700/part-00001
+
+To see the contents, run:
+
+    hadoop fs -cat results/20130724-210146-65127B6700/part-00000
+
+A table must exist in Lingual before an `insert into select ...` statement can be called so <<catalog,Catalog>> must
+be used to create a location to insert the results into.
+
+    > lingual catalog --schema working --add
+    > lingual catalog --schema working --stereotype titles -add --columns title,cnt --types string,int
+    > lingual catalog --schema working --table unique_titles --stereotype titles -add working/unique-titles.csv
+
+Now execute the query:
+
+    > lingual shell
+    > insert into "working"."unique_titles" select title, count( title ) as cnt from employees.titles group by title;
+
+The results will be located in `working/unique-titles.csv`.
+
+### Using different file formats
+
+Lingual supports a <<provider,Data Provider>> mechanism that allows for new *formats* and *protocols* to be added
+on demand.
+
+For example, to add support for a fabricated _pipe delimited format_ or `.psv` file, the built in providers can be used
+to create a new file format.
+
+By running:
+
+    > lingual catalog --provider
+
+you can see the currently registered providers. `text` is the built in provider for handling delimited files.
+
+To see the properties associated with the `text` provider, run:
+
+    > lingual catalog --provider text --show
+
+To create a `.psv` file, execute
+
+    > lingual catalog --schema working --format psv --add --provider text --extensions '.psv' --properties "delimiter=|"
+    > lingual catalog --schema working --table unique_titles --update working/unique-titles.psv --format psv
+
+The results will be located in `working/unique-titles.psv` and use a `|` instead of `,` as a field delimiter.
+
+### Adding and using a new Data Provider
+
+Instead of using the built in <<provider,Data Provider>>, new ones can be added that provide access to data systems
+not currently supported by Lingual.
+
+For example, to copy data from a `csv` file and store it in a memcached server, the
+https://github.com/Cascading/cascading.memcached[`cascading-memcached`] provider can be registered.
+
+To register the memcached provider, run:
+
+    > lingual catalog --provider -add cascading:cascading-memcached:0.3.0:provider
+
+This will retrieve the http://conjars.org/search?q=memcached[`cascading-memcached-0.3.0-provider.jar`]
+from http://conjars.org[Conjars] (if not on Conjars, then from Maven Central).
+
+To see what the provider provides, call:
+
+    > lingual catalog --provider memcached --show
+
+The memcached provider can store data as text delimited values, or as binary. To store values as comma separated
+text values, we can use the builtin *format* called `csv`. But we need to tell it which columns are keys, and which
+columns are values.
+
+    > lingual catalog --schema working --format csv --update --properties keyFields=title,valueFields=cnt
+
+Note we are "updating" the `csv` format as seen by the "working" schema even though the provider was added to the
+default schema.
+
+Compare these three calls:
+
+    > lingual catalog --format csv --show
+    > lingual catalog --format csv --provider memcached --show
+    > lingual catalog --schema working --format csv --show
+
+The first fails naming two providers that provide support for the `csv` format.
+The second shows the default values of `csv` for the "memcached" provider.
+The third shows the properties as configured in the "working" schema along with the defaults from the provider.
+
+Schemas are used to customize and/or override default protocol and format properties as seen by the tables in the
+given schema.
+
+Next we need to create a table that is backed by our memcached server on the given IP and port:
+
+    > lingual catalog --schema working --table title_counts --stereotype titles -add localhost:11211 \
+      --protocol memcached-text --format csv
+
+Note that we re-used the stereotype "titles" created in the above example.
+
+And when using Hadoop, make sure you use the actual IP address of the memcached server host, not `localhost`.
+
+Now execute the query, assuming an actual memcached server is running:
+
+    > lingual shell
+    > insert into "working"."title_counts" select title, count( title ) as cnt from employees.titles group by title;
+
+If run on Hadoop, a MapReduce job will be spawned, and the "sink" Tap in the Flow will be the memcached Tap. That is
+the results are *not* written to disk, but streamed directly into the memcached server from each reducer task.
+
+To verify values are stored in the memcached server, run:
+
+    > telnet localhost 11211
+    > get Staff
+
+<<top>>

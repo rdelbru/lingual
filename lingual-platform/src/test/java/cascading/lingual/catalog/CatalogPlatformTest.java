@@ -42,14 +42,14 @@ public class CatalogPlatformTest extends LingualPlatformTestCase
     String brokerDataPath = getOutputPath( "broker" );
 
     properties.setProperty( Driver.CATALOG_PROP, brokerDataPath );
-    properties.setProperty( PlatformBroker.META_DATA_PATH_PROP, "_lingual" );
-    properties.setProperty( PlatformBroker.CATALOG_FILE_PROP, "catalog.json" );
+    properties.setProperty( PlatformBroker.META_DATA_DIR_NAME_PROP, "_lingual" );
+    properties.setProperty( PlatformBroker.CATALOG_FILE_NAME_PROP, "catalog.json" );
 
     PlatformBrokerFactory.instance().reloadBrokers();
 
     PlatformBroker broker = PlatformBrokerFactory.createPlatformBroker( getPlatformName(), properties );
 
-    String catalogFilePath = PlatformBroker.makePath( "/", brokerDataPath, "_lingual", "catalog.json" );
+    String catalogFilePath = PlatformBroker.buildPath( "/", brokerDataPath, "_lingual", "catalog.json" );
 
     if( broker.pathExists( catalogFilePath ) )
       broker.deletePath( catalogFilePath );
@@ -58,9 +58,14 @@ public class CatalogPlatformTest extends LingualPlatformTestCase
 
     SchemaCatalog catalog = broker.getCatalog();
 
-    catalog.addSchemaDef( "test", null, null );
+    catalog.addSchemaDef( "TEST", null, null );
 
-    catalog.createTableDefFor( "test", null, SALES_DEPTS_TABLE, (Fields) null, null, null );
+    catalog.createTableDefFor( "TEST", null, SALES_DEPTS_TABLE, (Fields) null, null, null );
+
+    catalog.createStereotype( "TEST", "testStereoType", new Fields( "a", "b", "c" ) );
+
+    assertNotNull( catalog.getSchemaDef( "TEST" ).getStereotype( "testStereoType" ) );
+    assertNotNull( catalog.getSchemaDef( "TEST" ).getStereotype( "TESTSTEREOTYPE" ) );
 
     assertEquals( "SALES", catalog.createSchemaDefAndTableDefsFor( SALES_SCHEMA ) );
 
@@ -76,14 +81,17 @@ public class CatalogPlatformTest extends LingualPlatformTestCase
     assertTrue( catalog.getSchemaDef( "SALES" ).getChildTableNames().contains( "EMPS" ) );
     assertTrue( catalog.getSchemaDef( "SALES" ).getChildTableNames().contains( "DEPTS" ) );
 
-    assertTrue( catalog.getSchemaNames().contains( "test" ) );
-    assertTrue( catalog.getSchemaDef( "test" ).getChildTableNames().contains( "DEPTS" ) );
+    assertTrue( catalog.getSchemaNames().contains( "TEST" ) );
+    assertTrue( catalog.getSchemaDef( "TEST" ).getChildTableNames().contains( "DEPTS" ) );
 
-    catalog.renameSchemaDef( "test", "newtest" );
-    assertFalse( catalog.getSchemaNames().contains( "test" ) );
-    assertTrue( catalog.getSchemaNames().contains( "newtest" ) );
+    assertNotNull( catalog.getSchemaDef( "TEST" ).getStereotype( "testStereoType" ) );
+    assertNotNull( catalog.getSchemaDef( "TEST" ).getStereotype( "TESTSTEREOTYPE" ) );
 
-    catalog.removeSchemaDef( "newtest" );
-    assertFalse( catalog.getSchemaNames().contains( "newtest" ) );
+    catalog.renameSchemaDef( "TEST", "NEWTEST" );
+    assertFalse( catalog.getSchemaNames().contains( "TEST" ) );
+    assertTrue( catalog.getSchemaNames().contains( "NEWTEST" ) );
+
+    catalog.removeSchemaDef( "NEWTEST" );
+    assertFalse( catalog.getSchemaNames().contains( "NEWTEST" ) );
     }
   }

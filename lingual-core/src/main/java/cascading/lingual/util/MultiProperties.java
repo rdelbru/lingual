@@ -22,9 +22,10 @@ package cascading.lingual.util;
 
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import com.fasterxml.jackson.annotation.JsonGetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -32,11 +33,23 @@ import com.fasterxml.jackson.annotation.JsonSetter;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
 
+import static com.google.common.collect.Sets.newHashSet;
+import static java.util.Arrays.asList;
+
 /** Class MultiProperties is a simple version of a nested multi-map, that is, a Map of MultiMap instances. */
 public class MultiProperties<K> implements Serializable
   {
   @JsonIgnore
   private Table<K, String, List<String>> properties = HashBasedTable.create();
+
+  public static <K> MultiProperties<K> create( Map<K, Map<String, List<String>>> map )
+    {
+    MultiProperties<K> multiProperties = new MultiProperties<K>();
+
+    multiProperties.setProperties( map );
+
+    return multiProperties;
+    }
 
   public MultiProperties()
     {
@@ -61,7 +74,13 @@ public class MultiProperties<K> implements Serializable
     return properties.rowMap();
     }
 
-  public void addProperties( K k, Map<String, List<String>> properties )
+  @JsonIgnore
+  public Set<K> getKeys()
+    {
+    return properties.rowKeySet();
+    }
+
+  public void putProperties( K k, Map<String, List<String>> properties )
     {
     for( Map.Entry<String, List<String>> entry : properties.entrySet() )
       this.properties.put( k, entry.getKey(), entry.getValue() );
@@ -69,7 +88,7 @@ public class MultiProperties<K> implements Serializable
 
   public void addProperty( K k, String property, String... values )
     {
-    addProperty( k, property, Arrays.asList( values ) );
+    addProperty( k, property, asList( values ) );
     }
 
   public void addProperty( K k, String property, List<String> list )
@@ -77,7 +96,11 @@ public class MultiProperties<K> implements Serializable
     if( !properties.row( k ).containsKey( property ) )
       properties.put( k, property, new ArrayList<String>() );
 
-    properties.get( k, property ).addAll( list );
+    Set<String> previous = newHashSet( properties.get( k, property ) );
+
+    previous.addAll( list );
+
+    properties.put( k, property, new ArrayList<String>( previous ) );
     }
 
   public Map<K, List<String>> getKeyFor( String property )
@@ -88,6 +111,28 @@ public class MultiProperties<K> implements Serializable
   public Map<String, List<String>> getValueFor( K k )
     {
     return properties.row( k );
+    }
+
+  public Map<String, List<String>> removeRow( K key )
+    {
+    if( !properties.containsRow( key ) )
+      return null;
+
+    Map<String, List<String>> returnValue = new HashMap<String, List<String>>();
+    // two collections since can't iterate over keys while removing w/o getting ConcurrentModificationException.
+    Map<String, List<String>> values = getValueFor( key );
+    List<String> removedItems = new ArrayList<String>( values.size() );
+
+    for( String columnName : values.keySet() )
+      {
+      returnValue.put( columnName, values.get( columnName ) );
+      removedItems.add( columnName );
+      }
+
+    for( String columnName : removedItems )
+      properties.remove( key, columnName );
+
+    return returnValue.size() != 0 ? returnValue : null;
     }
 
   @Override

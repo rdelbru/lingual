@@ -20,15 +20,20 @@
 
 package cascading.lingual.shell;
 
-import java.io.FileInputStream;
+import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Properties;
 
 import cascading.lingual.common.Main;
 import cascading.lingual.jdbc.Driver;
 import cascading.lingual.util.Version;
+import com.google.common.base.Joiner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import sqlline.SqlLine;
@@ -41,6 +46,23 @@ import static java.util.Collections.addAll;
 public class Shell extends Main<ShellOptions>
   {
   private static final Logger LOG = LoggerFactory.getLogger( Shell.class );
+
+  InputStream inputStream = System.in;
+
+  public Shell()
+    {
+    }
+
+  public Shell( InputStream inputStream, PrintStream outPrintStream, PrintStream errPrintStream, Properties properties )
+    {
+    super( outPrintStream, errPrintStream, properties );
+    this.inputStream = inputStream;
+    }
+
+  public Shell( PrintStream outPrintStream, PrintStream errPrintStream, Properties properties )
+    {
+    super( outPrintStream, errPrintStream, properties );
+    }
 
   public static void main( String[] args ) throws IOException
     {
@@ -108,12 +130,16 @@ public class Shell extends Main<ShellOptions>
 //    \  --isolation=LEVEL               set the transaction isolation level\n \
 //    \  --help                          display this message
 
-    getPrinter().print( Version.getBannerVersionString() );
+    getPrinter().printFormatted( Version.getBannerVersionString() );
+
+    // sqlline doesn't handle basic dir config from command line but it does handle it from System.
+    String sqlLineDir = Joiner.on( File.separator ).join( System.getProperty( "user.home" ), ".lingual", "sqlline" );
+    System.setProperty( SqlLine.SQLLINE_BASE_DIR, sqlLineDir );
 
     List<String> args = new ArrayList<String>();
 
     addAll( args, "-d", Driver.class.getName() );
-    addAll( args, "-u", getOptions().createJDBCUrl() );
+    addAll( args, "-u", getOptions().createJDBCUrl( properties ) );
     addAll( args, "--headerInterval=100" ); // 100 is default
 
     if( getOptions().hasUsername() )
@@ -124,10 +150,15 @@ public class Shell extends Main<ShellOptions>
 
     // this breaks !tables etc,
     // but is required if we are going to output 10B rows
-    if( getOptions().getMaxRows() == 0 )
+    if( getOptions().getMaxRows() == null || getOptions().getMaxRows() == 0 )
+      {
       addAll( args, "--incremental=true" );
+      }
     else
-      getPrinter().print( "only %,d rows will be displayed", getOptions().getMaxRows() );
+      {
+      addAll( args, "--incremental=false" ); // allows buffering
+      getPrinter().printFormatted( "only %,d rows will be displayed", getOptions().getMaxRows() );
+      }
 
     if( getOptions().isVerbose() )
       addAll( args, "--verbose=true" );
@@ -141,22 +172,33 @@ public class Shell extends Main<ShellOptions>
 
     String sql = getOptions().getSqlFile();
 
+    boolean result = false;
     if( sql == null )
       {
+      result = true; // interactive use assumes interactive validation.
       LOG.info( "starting shell" );
       SqlLine.main( sqlLineArgs );
       }
     else if( "-".equals( sql ) )
       {
       LOG.info( "reading from stdin" );
-      SqlLine.mainWithInputRedirection( sqlLineArgs, System.in );
+      result = SqlLine.mainWithInputRedirection( sqlLineArgs, inputStream );
       }
     else
       {
       LOG.info( "reading from {}", sql );
-      SqlLine.mainWithInputRedirection( sqlLineArgs, new FileInputStream( sql ) );
+      String runCommand = SqlLine.COMMAND_PREFIX + "run " + sql + "\n";
+      InputStream commandStream = new ByteArrayInputStream( runCommand.getBytes() );
+      try
+        {
+        result = SqlLine.mainWithInputRedirection( sqlLineArgs, commandStream );
+        }
+      finally
+        {
+        commandStream.close();
+        }
       }
 
-    return true;
+    return result;
     }
   }

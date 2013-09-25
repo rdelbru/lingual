@@ -27,6 +27,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.URI;
+import java.net.URLStreamHandlerFactory;
 import java.util.Properties;
 
 import cascading.flow.FlowConnector;
@@ -74,7 +76,7 @@ public class LocalPlatformBroker extends PlatformBroker<Properties>
   @Override
   public FlowProcess<Properties> getFlowProcess()
     {
-    return new LocalFlowProcess( getConfig() );
+    return new LocalFlowProcess( getPlannerConfig() );
     }
 
   @Override
@@ -84,7 +86,19 @@ public class LocalPlatformBroker extends PlatformBroker<Properties>
     }
 
   @Override
-  public Properties getConfig()
+  public Properties getDefaultConfig()
+    {
+    return new Properties(); // unused
+    }
+
+  @Override
+  public Properties getSystemConfig()
+    {
+    return getProperties();
+    }
+
+  @Override
+  public Properties getPlannerConfig()
     {
     return getProperties();
     }
@@ -191,5 +205,17 @@ public class LocalPlatformBroker extends PlatformBroker<Properties>
   public String getFileSeparator()
     {
     return File.separator;
+    }
+
+  @Override
+  protected URI toURI( String qualifiedPath )
+    {
+    return new File( qualifiedPath ).toURI();
+    }
+
+  @Override
+  protected URLStreamHandlerFactory getURLStreamHandlerFactory()
+    {
+    return null;
     }
   }

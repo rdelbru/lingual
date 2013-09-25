@@ -20,6 +20,7 @@
 
 package cascading.lingual.util;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
@@ -30,15 +31,68 @@ public class Reflection
   {
   public static Object invokeStaticMethod( ClassLoader loader, String typeString, String methodName, Object[] parameters, Class[] parameterTypes )
     {
+    Class type = loadClass( loader, typeString );
+
+    return invokeStaticMethod( type, methodName, parameters, parameterTypes );
+    }
+
+  public static Class<?> loadClassSafe( String typeString )
+    {
     try
       {
-      Class type = loader.loadClass( typeString );
+      return loadClass( typeString );
+      }
+    catch( Exception exception )
+      {
+      return null;
+      }
+    }
 
-      return invokeStaticMethod( type, methodName, parameters, parameterTypes );
+  public static Class<?> loadClass( String typeString )
+    {
+    return loadClass( Thread.currentThread().getContextClassLoader(), typeString );
+    }
+
+  public static Class<?> loadClass( ClassLoader loader, String typeString )
+    {
+    try
+      {
+      return loader.loadClass( typeString );
       }
     catch( ClassNotFoundException exception )
       {
       throw new CascadingException( "unable to load class: " + typeString, exception );
+      }
+    }
+
+  public static Object newInstanceSafe( Class type )
+    {
+    if( type == null )
+      return null;
+
+    try
+      {
+      return newInstance( type );
+      }
+    catch( Exception exception )
+      {
+      return null;
+      }
+    }
+
+  public static Object newInstance( Class type )
+    {
+    try
+      {
+      Constructor constructor = type.getDeclaredConstructor();
+
+      constructor.setAccessible( true );
+
+      return constructor.newInstance();
+      }
+    catch( Exception exception )
+      {
+      throw new CascadingException( "unable to create new instance of: " + type.getName(), exception );
       }
     }
 
@@ -82,6 +136,18 @@ public class Reflection
   public static <T> T invokeInstanceMethod( Object target, String methodName, Object parameter, Class parameterType )
     {
     return invokeInstanceMethod( target, methodName, new Object[]{parameter}, new Class[]{parameterType} );
+    }
+
+  public static <T> T invokeInstanceMethodSafe( Object target, String methodName, Object parameter, Class parameterType )
+    {
+    try
+      {
+      return invokeInstanceMethod( target, methodName, new Object[]{parameter}, new Class[]{parameterType} );
+      }
+    catch( Exception exception )
+      {
+      return null;
+      }
     }
 
   public static <T> T invokeInstanceMethod( Object target, String methodName, Object[] parameters, Class[] parameterTypes )

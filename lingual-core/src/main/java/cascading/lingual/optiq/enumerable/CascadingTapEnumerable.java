@@ -27,6 +27,7 @@ import java.util.Properties;
 
 import cascading.flow.FlowProcess;
 import cascading.lingual.catalog.SchemaCatalog;
+import cascading.lingual.catalog.TableDef;
 import cascading.lingual.jdbc.Driver;
 import cascading.lingual.optiq.meta.TableHolder;
 import cascading.lingual.platform.PlatformBroker;
@@ -76,9 +77,9 @@ public class CascadingTapEnumerable extends AbstractEnumerable implements Enumer
     return tableHolder.physType;
     }
 
-  public String getIdentifier()
+  public TableDef getTableDef()
     {
-    return tableHolder.identifier;
+    return tableHolder.tableDef;
     }
 
   public PlatformBroker getPlatformBroker()
@@ -96,13 +97,13 @@ public class CascadingTapEnumerable extends AbstractEnumerable implements Enumer
     PlatformBroker platformBroker = getPlatformBroker();
     Properties properties = platformBroker.getProperties();
 
-    Optiq.writeSQLPlan( platformBroker.getProperties(), Misc.createUniqueName(), getVolcanoPlanner() );
+    Optiq.writeSQLPlan( properties, Misc.createUniqueName(), getVolcanoPlanner() );
 
     FlowProcess flowProcess = platformBroker.getFlowProcess();
     SchemaCatalog schemaCatalog = platformBroker.getCatalog();
 
-    Tap tap = schemaCatalog.createTapFor( getIdentifier(), SinkMode.KEEP );
-    int size = tap.getSinkFields().size();
+    Tap tap = schemaCatalog.createTapFor( getTableDef(), SinkMode.KEEP );
+    int size = tap.getSourceFields().size();
 
     Type[] types = new Type[ size ];
 

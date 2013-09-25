@@ -32,9 +32,7 @@ import cascading.tap.Tap;
 import cascading.tap.local.FileTap;
 import cascading.tuple.TupleEntryIterator;
 
-/**
- *
- */
+/** A trivial Flow example */
 public class FlowExample
   {
   public static void main( String[] args ) throws Exception
@@ -49,10 +47,13 @@ public class FlowExample
       + "join \"example\".\"employee\" as e\n"
       + "on e.\"EMPID\" = s.\"CUST_ID\"";
 
-    Tap empTap = new FileTap( new SQLTypedTextDelimited( ",", "\"" ), "src/main/resources/data/example/employee.tcsv", SinkMode.KEEP );
-    Tap salesTap = new FileTap( new SQLTypedTextDelimited( ",", "\"" ), "src/main/resources/data/example/sales_fact_1997.tcsv", SinkMode.KEEP );
+    Tap empTap = new FileTap( new SQLTypedTextDelimited( ",", "\"" ),
+      "src/main/resources/data/example/employee.tcsv", SinkMode.KEEP );
+    Tap salesTap = new FileTap( new SQLTypedTextDelimited( ",", "\"" ),
+      "src/main/resources/data/example/sales_fact_1997.tcsv", SinkMode.KEEP );
 
-    Tap resultsTap = new FileTap( new SQLTypedTextDelimited( ",", "\"" ), "build/test/output/flow/results.tcsv", SinkMode.REPLACE );
+    Tap resultsTap = new FileTap( new SQLTypedTextDelimited( ",", "\"" ),
+      "build/test/output/flow/results.tcsv", SinkMode.REPLACE );
 
     FlowDef flowDef = FlowDef.flowDef()
       .setName( "sql flow" )

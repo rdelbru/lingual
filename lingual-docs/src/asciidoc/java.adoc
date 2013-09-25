@@ -1,0 +1,73 @@
+[id="java"]
+## Lingual in Java with Cascading
+
+The Java source code used to execute a query as a Cascading `Flow` is much the same as assembling a `Flow` from
+a pipe assembly. Cascading 2.2 has introduced the `SQLPlanner` interface allowing the underlying pipe assembly
+to be created on the fly after the source and sink `Tap` instances are provided.
+
+[source,java]
+----
+import java.io.IOException;
+import cascading.flow.Flow;
+import cascading.flow.FlowDef;
+import cascading.flow.local.LocalFlowConnector;
+import cascading.lingual.flow.SQLPlanner;
+import cascading.lingual.tap.local.SQLTypedTextDelimited;
+import cascading.tap.SinkMode;
+import cascading.tap.Tap;
+import cascading.tap.local.FileTap;
+import cascading.tuple.TupleEntryIterator;
+
+public class FlowExample
+  {
+  public static void main( String[] args ) throws Exception
+    {
+    new FlowExample().run();
+    }
+
+  public void run() throws IOException
+    {
+    String statement = "select *\n"
+      + "from \"example\".\"sales_fact_1997\" as s\n"
+      + "join \"example\".\"employee\" as e\n"
+      + "on e.\"EMPID\" = s.\"CUST_ID\"";
+
+    Tap empTap = new FileTap( new SQLTypedTextDelimited( ",", "\"" ),
+        "src/main/resources/data/example/employee.tcsv", SinkMode.KEEP );
+    Tap salesTap = new FileTap( new SQLTypedTextDelimited( ",", "\"" ),
+        "src/main/resources/data/example/sales_fact_1997.tcsv", SinkMode.KEEP );
+
+    Tap resultsTap = new FileTap( new SQLTypedTextDelimited( ",", "\"" ),
+        "build/test/output/flow/results.tcsv", SinkMode.REPLACE );
+
+    FlowDef flowDef = FlowDef.flowDef()
+      .setName( "sql flow" )
+      .addSource( "example.employee", empTap )
+      .addSource( "example.sales_fact_1997", salesTap )
+      .addSink( "results", resultsTap );
+
+    SQLPlanner sqlPlanner = new SQLPlanner()
+      .setSql( statement );
+
+    flowDef.addAssemblyPlanner( sqlPlanner );
+
+    Flow flow = new LocalFlowConnector().connect( flowDef );
+
+    flow.complete();
+
+    TupleEntryIterator iterator = resultsTap.openForRead( flow.getFlowProcess() );
+
+    while( iterator.hasNext() )
+      System.out.println( iterator.next() );
+
+    iterator.close();
+    }
+  }
+----
+
+Note that in this example the table definitions expected by the SQL statement has been derived directly from the
+TCSV files. Where TCSV files are standard CSV (comma separated values) files with a header containing the field name
+and "type" of the column, like `string` or `int`. This feature is provided by the `SQLTypedTextDelimited` `Scheme`
+class.
+
+<<top>>

@@ -29,6 +29,8 @@ import java.util.Properties;
 
 import cascading.flow.Flow;
 import com.google.common.base.Throwables;
+import org.eigenbase.sql.parser.SqlParseException;
+import org.eigenbase.util.EigenbaseContextException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -67,56 +69,6 @@ public class LingualStatement implements Statement
       {
       throw new RuntimeException( "unable set set max rows", exception );
       }
-    }
-
-  @Override
-  public ResultSet executeQuery( String sql ) throws SQLException
-    {
-    LOG.info( "executeQuery: {}", sql );
-
-    try
-      {
-      return parent.executeQuery( sql );
-      }
-    catch( SQLException exception )
-      {
-      LOG.error( "failed with: {}", exception.getMessage(), exception );
-      throw exception;
-      }
-    catch( OutOfMemoryError error )
-      {
-      throw error;
-      }
-    catch( Throwable throwable )
-      {
-      LOG.error( "failed with: {}", throwable.getMessage(), throwable );
-      Throwables.propagate( throwable );
-      }
-
-    return null;
-    }
-
-  @Override
-  public int executeUpdate( String sql ) throws SQLException
-    {
-    LOG.info( "executeUpdate: {}", sql );
-
-    try
-      {
-      return parent.executeUpdate( sql );
-      }
-    catch( SQLException exception )
-      {
-      LOG.error( "failed with: {}", exception.getMessage(), exception );
-      throw exception;
-      }
-    catch( Throwable exception )
-      {
-      LOG.error( "failed with: {}", exception.getMessage(), exception );
-      Throwables.propagate( exception );
-      }
-
-    return 0;
     }
 
   @Override
@@ -172,14 +124,18 @@ public class LingualStatement implements Statement
     {
     try
       {
-      parent.cancel();
+      if( !parent.isClosed() )
+        parent.cancel();
       }
     finally
       {
       Flow flow = lingualConnection.getCurrentFlow();
 
       if( flow != null )
+        {
+        LOG.info( "stopping flow: {}", flow.getID() );
         flow.stop();
+        }
       }
     }
 
@@ -210,18 +166,68 @@ public class LingualStatement implements Statement
       {
       return parent.execute( sql );
       }
-    catch( SQLException exception )
+    catch( Throwable throwable )
       {
-      LOG.error( "failed with: {}", exception.getMessage(), exception );
-      throw exception;
+      throw handleThrowable( throwable );
       }
-    catch( Throwable exception )
+    }
+
+  @Override
+  public ResultSet executeQuery( String sql ) throws SQLException
+    {
+    LOG.info( "executeQuery: {}", sql );
+
+    try
       {
-      LOG.error( "failed with: {}", exception.getMessage(), exception );
-      Throwables.propagate( exception );
+      return parent.executeQuery( sql );
+      }
+    catch( Throwable throwable )
+      {
+      throw handleThrowable( throwable );
+      }
+    }
+
+  @Override
+  public int executeUpdate( String sql ) throws SQLException
+    {
+    LOG.info( "executeUpdate: {}", sql );
+
+    try
+      {
+      return parent.executeUpdate( sql );
+      }
+    catch( Throwable throwable )
+      {
+      throw handleThrowable( throwable );
+      }
+    }
+
+  private RuntimeException handleThrowable( Throwable throwable ) throws SQLException
+    {
+    // do not log an OOME
+    if( throwable instanceof OutOfMemoryError )
+      throw (OutOfMemoryError) throwable;
+
+    LOG.error( "failed with: {}", throwable.getMessage(), throwable );
+
+    if( throwable instanceof SQLException )
+      throw (SQLException) throwable;
+
+    if( throwable instanceof EigenbaseContextException )
+      {
+      String lineMessage = throwable.getMessage();
+      String validatorMessage = throwable.getCause() != null ? throwable.getCause().getMessage() : "";
+
+      throw new SQLException( lineMessage + ": \"" + validatorMessage + "\"", throwable );
       }
 
-    return false;
+    if( throwable.getCause() instanceof SqlParseException )
+      {
+      Throwable cause = throwable.getCause();
+      throw new SQLException( cause.getMessage(), cause );
+      }
+
+    throw Throwables.propagate( throwable );
     }
 
   @Override
@@ -376,12 +382,13 @@ public class LingualStatement implements Statement
 
   public void closeOnCompletion() throws SQLException
     {
-    throw new UnsupportedOperationException( "This JDK 1.7 feature is not supported" );
+    LOG.debug( "This JDK 1.7 feature is not supported" );
     }
 
   public boolean isCloseOnCompletion() throws SQLException
     {
-    throw new UnsupportedOperationException( "This JDK 1.7 feature is  not supported" );
+    LOG.debug( "This JDK 1.7 feature is not supported" );
+    return false; // JDK 1.7 feature not supported so tell client to explicitly close.
     }
 
   @Override

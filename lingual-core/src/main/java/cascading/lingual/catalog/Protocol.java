@@ -22,6 +22,7 @@ package cascading.lingual.catalog;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
@@ -35,7 +36,7 @@ import static cascading.lingual.util.MiscCollection.makeInternedCache;
  * Class Protocol is an enhanced "enum" type that allows for runtime membership used for defining new "protocols"
  * used during table and identifier runtime resolution.
  */
-public class Protocol implements Serializable
+public class Protocol implements Serializable, Comparable<Protocol>
   {
   private static final Function<String, Protocol> factory = new Function<String, Protocol>()
   {
@@ -59,6 +60,9 @@ public class Protocol implements Serializable
 
   public static List<Protocol> resolveProtocols( List<String> protocols )
     {
+    if( protocols == null )
+      return Collections.EMPTY_LIST;
+
     List<Protocol> results = new ArrayList<Protocol>();
 
     for( String protocol : protocols )
@@ -106,5 +110,14 @@ public class Protocol implements Serializable
   public int hashCode()
     {
     return name != null ? name.hashCode() : 0;
+    }
+
+  @Override
+  public int compareTo( Protocol protocol )
+    {
+    if( protocol == null )
+      return Integer.MAX_VALUE;
+
+    return this.getName().compareTo( protocol.getName() );
     }
   }

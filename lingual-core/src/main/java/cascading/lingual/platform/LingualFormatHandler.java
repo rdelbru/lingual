@@ -21,7 +21,6 @@
 package cascading.lingual.platform;
 
 import java.io.Serializable;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -29,65 +28,62 @@ import cascading.bind.catalog.Stereotype;
 import cascading.bind.catalog.handler.FormatHandler;
 import cascading.lingual.catalog.Format;
 import cascading.lingual.catalog.Protocol;
+import cascading.lingual.catalog.ProviderDef;
 import cascading.lingual.util.MultiProperties;
 import cascading.scheme.Scheme;
-import cascading.tuple.Fields;
-import com.google.common.base.Function;
-import com.google.common.collect.HashBasedTable;
-import com.google.common.collect.Table;
 
 /**
  *
  */
 public abstract class LingualFormatHandler implements FormatHandler<Protocol, Format>, Serializable
   {
-  private transient Table<Protocol, Format, Function<Fields, Scheme>> table;
-  private MultiProperties<Format> defaults = new MultiProperties<Format>();
+  protected final ProviderDef providerDef;
+  private MultiProperties<Format> properties = new MultiProperties<Format>();
 
-  protected Table<Protocol, Format, Function<Fields, Scheme>> getTable()
+  public LingualFormatHandler( ProviderDef providerDef )
     {
-    if( table == null )
-      {
-      table = HashBasedTable.create();
-      initialize( table );
-      }
+    this.providerDef = providerDef;
 
-    return table;
+    Map<Format, Map<String, List<String>>> formats = providerDef.getFormatProperties();
+
+    for( Format format : formats.keySet() )
+      getProperties().putProperties( format, formats.get( format ) );
     }
 
-  protected MultiProperties<Format> getDefaults()
+  public ProviderDef getProviderDef()
     {
-    return defaults;
+    return providerDef;
+    }
+
+  /**
+   * Wrap the resulting Scheme in a proxy that swaps out the context classloader.
+   * <p/>
+   * Currently unused, but here for completeness
+   */
+  public abstract Scheme createLoadableScheme( Stereotype<Protocol, Format> stereotype, Protocol protocol, Format format );
+
+  public void addProperties( Format format, Map<String, List<String>> values )
+    {
+    for( String key : values.keySet() )
+      addProperty( format, key, values.get( key ) );
+    }
+
+  public void addProperty( Format format, String key, List<String> values )
+    {
+    if( values == null || values.isEmpty() )
+      return;
+
+    getProperties().addProperty( format, key, values );
+    }
+
+  protected MultiProperties<Format> getProperties()
+    {
+    return properties;
     }
 
   @Override
   public Map<String, List<String>> getDefaultProperties( Format format )
     {
-    return getDefaults().getValueFor( format );
-    }
-
-  protected abstract void initialize( Table<Protocol, Format, Function<Fields, Scheme>> table );
-
-  @Override
-  public boolean handles( Protocol protocol, Format format )
-    {
-    return getTable().containsRow( protocol ) && getTable().containsColumn( format );
-    }
-
-  @Override
-  public Collection<? extends Format> getFormats()
-    {
-    return getTable().columnKeySet();
-    }
-
-  @Override
-  public Scheme createScheme( Stereotype<Protocol, Format> stereotype, Protocol protocol, Format format )
-    {
-    Function<Fields, Scheme> schemeFunction = getTable().get( protocol, format );
-
-    if( schemeFunction == null )
-      throw new IllegalStateException( "no scheme found for protocol: " + protocol + ", and format: " + format );
-
-    return schemeFunction.apply( stereotype.getFields() );
+    return getProperties().getValueFor( format );
     }
   }

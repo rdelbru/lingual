@@ -23,10 +23,10 @@ package cascading.lingual.optiq.meta;
 import java.util.List;
 import java.util.Map;
 
+import cascading.lingual.catalog.TableDef;
 import cascading.lingual.platform.PlatformBroker;
 import cascading.pipe.Pipe;
 import cascading.tuple.Fields;
-import cascading.util.Util;
 import org.eigenbase.rex.RexLiteral;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,40 +41,40 @@ public class Branch
   public PlatformBroker platformBroker;
   public List<List<RexLiteral>> tuples;
   public Map<Ref, Pipe> heads;
+  public TableDef tailTableDef;
   public Pipe current;
-  public String[] resultName;
   public boolean isModification = false;
 
-  public Branch( PlatformBroker platformBroker, Map<Ref, Pipe> heads, String name, String identifier )
+  public Branch( PlatformBroker platformBroker, Map<Ref, Pipe> heads, String name, TableDef tableDef )
     {
     this.platformBroker = platformBroker;
     this.heads = heads;
 
-    Ref head = new Ref( name, identifier );
+    Ref head = new Ref( name, tableDef );
 
     if( this.heads.containsKey( head ) )
       {
-      LOG.debug( "re-using branch head: {}, for: {}", name, identifier );
+      LOG.debug( "re-using branch head: {}, for: {}", name, tableDef );
 
       this.current = this.heads.get( head );
       }
     else
       {
-      LOG.debug( "adding branch head: {}, for: {}", name, identifier );
+      LOG.debug( "adding branch head: {}, for: {}", name, tableDef );
 
       this.current = new Pipe( name );
       this.heads.put( head, this.current );
       }
     }
 
-  public Branch( PlatformBroker platformBroker, Branch branch, String name, String[] resultName )
+  public Branch( PlatformBroker platformBroker, Branch branch, TableDef tableDef )
     {
-    LOG.debug( "adding branch tail: {}, for table: {}", name, Util.join( resultName, "." ) );
+    LOG.debug( "adding branch tail: {}, for table: {}", tableDef.getName(), tableDef.getName() );
 
     this.platformBroker = platformBroker;
     this.heads = branch.heads;
-    this.current = new Pipe( name, branch.current );
-    this.resultName = resultName;
+    this.tailTableDef = tableDef;
+    this.current = new Pipe( tableDef.getName(), branch.current );
     this.isModification = true;
     this.tuples = branch.tuples;
     }
@@ -95,13 +95,13 @@ public class Branch
       }
     }
 
-  public Branch( PlatformBroker platformBroker, String[] resultName, List<List<RexLiteral>> tuples )
+  public Branch( PlatformBroker platformBroker, TableDef tableDef, List<List<RexLiteral>> tuples )
     {
     LOG.debug( "adding values insertion" );
 
     this.platformBroker = platformBroker;
     this.tuples = tuples;
-    this.resultName = resultName;
+    this.tailTableDef = tableDef;
     this.isModification = true;
     }
 

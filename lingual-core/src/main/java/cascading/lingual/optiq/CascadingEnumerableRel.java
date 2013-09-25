@@ -29,12 +29,12 @@ import cascading.lingual.optiq.meta.Branch;
 import cascading.lingual.optiq.meta.FlowHolder;
 import cascading.lingual.optiq.meta.ValuesHolder;
 import net.hydromatic.linq4j.expressions.BlockBuilder;
-import net.hydromatic.linq4j.expressions.BlockExpression;
+import net.hydromatic.linq4j.expressions.BlockStatement;
 import net.hydromatic.linq4j.expressions.Expressions;
-import net.hydromatic.optiq.impl.java.JavaTypeFactory;
 import net.hydromatic.optiq.rules.java.EnumerableConvention;
 import net.hydromatic.optiq.rules.java.EnumerableRel;
 import net.hydromatic.optiq.rules.java.EnumerableRelImplementor;
+import net.hydromatic.optiq.rules.java.JavaRowFormat;
 import net.hydromatic.optiq.rules.java.PhysType;
 import net.hydromatic.optiq.rules.java.PhysTypeImpl;
 import org.eigenbase.rel.RelNode;
@@ -54,21 +54,12 @@ class CascadingEnumerableRel extends SingleRel implements EnumerableRel
   {
   private static final Logger LOG = LoggerFactory.getLogger( CascadingEnumerableRel.class );
 
-  private PhysType physType;
-
   public CascadingEnumerableRel( RelOptCluster cluster, RelTraitSet traitSet, RelNode input )
     {
     super( cluster, traitSet, input );
 
-    if( getConvention() != EnumerableConvention.ARRAY )
+    if( getConvention() != EnumerableConvention.INSTANCE )
       throw new IllegalStateException( "unsupported convention " + getConvention() );
-
-    physType = PhysTypeImpl.of( (JavaTypeFactory) cluster.getTypeFactory(), input.getRowType(), (EnumerableConvention) getConvention() );
-    }
-
-  public PhysType getPhysType()
-    {
-    return physType;
     }
 
   @Override
@@ -84,7 +75,7 @@ class CascadingEnumerableRel extends SingleRel implements EnumerableRel
     }
 
   @Override
-  public BlockExpression implement( EnumerableRelImplementor implementor )
+  public Result implement( EnumerableRelImplementor implementor, Prefer pref )
     {
     LOG.debug( "implementing enumerable" );
 
@@ -93,13 +84,16 @@ class CascadingEnumerableRel extends SingleRel implements EnumerableRel
 
     VolcanoPlanner planner = (VolcanoPlanner) getCluster().getPlanner();
 
-    if( branch.tuples != null )
-      return handleInsert( branch, planner );
-    else
-      return handleFlow( branch, planner );
+    PhysType physType = PhysTypeImpl.of( implementor.getTypeFactory(), input.getRowType(), JavaRowFormat.ARRAY );
+
+    BlockStatement block =
+      branch.tuples != null
+        ? handleInsert( branch, planner )
+        : handleFlow( branch, physType, planner );
+    return implementor.result( physType, block );
     }
 
-  private BlockExpression handleInsert( Branch branch, VolcanoPlanner planner )
+  private BlockStatement handleInsert( Branch branch, VolcanoPlanner planner )
     {
     ValuesHolder holder = new ValuesHolder( branch, planner );
 
@@ -110,9 +104,9 @@ class CascadingEnumerableRel extends SingleRel implements EnumerableRel
     return new BlockBuilder().append( Expressions.new_( constructor, Expressions.constant( ordinal ) ) ).toBlock();
     }
 
-  private BlockExpression handleFlow( Branch branch, VolcanoPlanner planner )
+  private BlockStatement handleFlow( Branch branch, PhysType physType, VolcanoPlanner planner )
     {
-    FlowHolder flowHolder = new FlowHolder( getPhysType(), branch, planner );
+    FlowHolder flowHolder = new FlowHolder( physType, branch, planner );
 
     long ordinal = CascadingFlowRunnerEnumerable.addHolder( flowHolder );
 

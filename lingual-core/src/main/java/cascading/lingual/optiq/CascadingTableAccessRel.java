@@ -20,32 +20,39 @@
 
 package cascading.lingual.optiq;
 
-import java.util.HashMap;
-import java.util.Map;
-
+import cascading.lingual.catalog.SchemaCatalog;
+import cascading.lingual.catalog.TableDef;
 import cascading.lingual.optiq.meta.Branch;
 import cascading.lingual.platform.PlatformBroker;
 import cascading.lingual.tap.TapTable;
+import cascading.tap.SinkMode;
+import cascading.tap.Tap;
+import cascading.tap.type.FileType;
 import cascading.util.Util;
-import net.hydromatic.optiq.rules.java.JavaRules;
 import org.eigenbase.rel.TableAccessRelBase;
 import org.eigenbase.rel.rules.PushJoinThroughJoinRule;
 import org.eigenbase.relopt.RelOptCluster;
 import org.eigenbase.relopt.RelOptPlanner;
 import org.eigenbase.relopt.RelOptTable;
 import org.eigenbase.relopt.volcano.AbstractConverter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  */
 public class CascadingTableAccessRel extends TableAccessRelBase implements CascadingRelNode
   {
+  private static final Logger LOG = LoggerFactory.getLogger( CascadingTableAccessRel.class );
+
   final String name;
   final String identifier;
 
+  private Double rows; // cache the value, its costly to get
+
   public CascadingTableAccessRel( RelOptCluster cluster, RelOptTable table, String name, String identifier )
     {
-    super( cluster, cluster.getEmptyTraitSet().plus( Cascading.CONVENTION ), table );
+    super( cluster, cluster.traitSetOf( Cascading.CONVENTION ), table );
     this.name = name;
     this.identifier = identifier;
     }
@@ -59,12 +66,10 @@ public class CascadingTableAccessRel extends TableAccessRelBase implements Casca
 
   public static void registerRules( RelOptPlanner planner )
     {
-    planner.removeRule( JavaRules.ENUMERABLE_CUSTOM_FROM_ARRAY_RULE );
-
     planner.addRule( PushJoinThroughJoinRule.INSTANCE );
 
     // handles actual flow planning
-    planner.addRule( CascadingEnumerableConverterRule.ARRAY_INSTANCE );
+    planner.addRule( CascadingEnumerableConverterRule.INSTANCE );
 
     planner.addRule( CascadingTableModificationConverterRule.INSTANCE );
     planner.addRule( CascadingAggregateConverterRule.INSTANCE );
@@ -86,7 +91,7 @@ public class CascadingTableAccessRel extends TableAccessRelBase implements Casca
     {
     String pipeName = isUseFullName() ? getQualifiedName() : name;
 
-    return new Branch( getPlatformBroker(), stack.heads, pipeName, identifier );
+    return new Branch( getPlatformBroker(), stack.heads, pipeName, getTapTable().getTableDef() );
     }
 
   private String getQualifiedName()
@@ -109,32 +114,46 @@ public class CascadingTableAccessRel extends TableAccessRelBase implements Casca
     return getTable().unwrap( TapTable.class );
     }
 
-  // todo: remove
-  private static final Map<String, Double> TABLE_ROW_COUNTS =
-    new HashMap<String, Double>()
-    {
-    {
-    put( "time_by_day", 730d );
-    put( "inventory_fact_1997", 4070d );
-    put( "sales_fact_1997", 86837d );
-    put( "customer", 10281d );
-    put( "product", 1560d );
-    put( "product_class", 110d );
-    put( "promotion", 1864d );
-    put( "store", 25d );
-    put( "warehouse", 24d );
-    }
-    };
-
   @Override
-  public double getRows()
+  public synchronized double getRows()
     {
-    // Hard-coded row-counts for our test tables. TODO: get file sizes from HDFS
-    final String[] names = table.getQualifiedName();
-    final String name = names[ names.length - 1 ];
-    final Double n = TABLE_ROW_COUNTS.get( name );
-    if( n != null )
-      return n.doubleValue();
+    if( rows == null )
+      rows = getRowsInternal();
+
+    return rows;
+    }
+
+  private double getRowsInternal()
+    {
+    PlatformBroker platformBroker = getPlatformBroker();
+
+    if( platformBroker == null )
+      return super.getRows();
+
+    SchemaCatalog catalog = platformBroker.getCatalog();
+
+    if( catalog == null )
+      return super.getRows();
+
+    TableDef tableDef = getTapTable().getTableDef();
+
+    try
+      {
+      Tap tap = catalog.createTapFor( tableDef, SinkMode.KEEP );
+
+      if( tap != null )
+        {
+        if( !tap.resourceExists( platformBroker.getSystemConfig() ) )
+          return 0.0;
+        else if( tap instanceof FileType )
+          return ( (FileType) tap ).getSize( platformBroker.getSystemConfig() ); // actually returns bytes
+        }
+      }
+    catch( Exception exception )
+      {
+      LOG.warn( "unable to create tap for: " + tableDef );
+      }
+
     return super.getRows();
     }
   }

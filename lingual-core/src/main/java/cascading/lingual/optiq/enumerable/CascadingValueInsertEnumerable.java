@@ -99,7 +99,7 @@ public class CascadingValueInsertEnumerable extends AbstractEnumerable implement
     Optiq.writeSQLPlan( platformBroker.getProperties(), createUniqueName(), getVolcanoPlanner() );
 
     Branch branch = getBranch();
-    TupleEntryCollector collector = getTupleEntryCollector( platformBroker, branch.resultName );
+    TupleEntryCollector collector = getTupleEntryCollector( platformBroker, branch.tailTableDef );
 
     long rowCount = 0;
 
@@ -115,19 +115,18 @@ public class CascadingValueInsertEnumerable extends AbstractEnumerable implement
     return new Linq4j().singletonEnumerable( rowCount ).enumerator();
     }
 
-  private TupleEntryCollector getTupleEntryCollector( PlatformBroker platformBroker, String[] resultName )
+  private TupleEntryCollector getTupleEntryCollector( PlatformBroker platformBroker, TableDef tableDef )
     {
     FlowProcess flowProcess = platformBroker.getFlowProcess();
     SchemaCatalog schemaCatalog = platformBroker.getCatalog();
     Map<String, TupleEntryCollector> cache = platformBroker.getCollectorCache();
 
-    TableDef tableDef = platformBroker.getCatalog().resolveTableDef( resultName );
-    String identifier = tableDef.getIdentifier();
-
     TupleEntryCollector collector;
 
     try
       {
+      String identifier = tableDef.getIdentifier();
+
       if( cache != null && cache.containsKey( identifier ) )
         {
         LOG.debug( "inserting into (cached): {}", identifier );
@@ -136,7 +135,7 @@ public class CascadingValueInsertEnumerable extends AbstractEnumerable implement
       else
         {
         LOG.debug( "inserting into: {}", identifier );
-        collector = schemaCatalog.createTapFor( identifier, SinkMode.KEEP ).openForWrite( flowProcess );
+        collector = schemaCatalog.createTapFor( tableDef, SinkMode.KEEP ).openForWrite( flowProcess );
         }
 
       if( cache != null )

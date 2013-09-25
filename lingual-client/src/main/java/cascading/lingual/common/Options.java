@@ -22,8 +22,11 @@ package cascading.lingual.common;
 
 import java.io.IOException;
 import java.io.PrintStream;
+import java.util.Collections;
+import java.util.Map;
 
-import cascading.util.Version;
+import com.google.common.base.Joiner;
+import com.google.common.base.Splitter;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
@@ -40,21 +43,25 @@ public class Options
   protected OptionParser parser = new OptionParser();
   protected OptionSet optionSet;
 
-  protected OptionSpec<Void> version;
-  protected OptionSpec<Void> help;
-  protected OptionSpec<Void> debug;
-  protected OptionSpec<String> verbose;
-  protected OptionSpec<String> platform;
+  protected final OptionSpec<Void> version;
+  protected final OptionSpec<Void> help;
+  protected final OptionSpec<Void> debug;
+  protected final OptionSpec<String> verbose;
+  protected final OptionSpec<String> platform;
+  private final OptionSpec<Map<String, String>> config;
 
   public Options()
     {
     help = parser.accepts( "help" ).forHelp();
-    debug = parser.accepts( "debug" ); // does nothing but hold the space
+    debug = parser.accepts( "debug" ); // does nothing but hold the space, caught by the shell
     verbose = parser.accepts( "verbose" ).withOptionalArg().defaultsTo( "info" );
     version = parser.accepts( "version" );
 
-    platform = parser.accepts( "platform", "platform planner to use" )
+    platform = parser.accepts( "platform", "platform planner to use, optionally set LINGUAL_PLATFORM env variable" )
       .withRequiredArg().defaultsTo( "local" );
+
+    config = parser.accepts( "config", "key=value pairs" )
+      .withRequiredArg().withValuesConvertedBy( new PropertiesConverter() );
     }
 
   public boolean parse( PrintStream printStream, String... args ) throws IOException
@@ -73,16 +80,27 @@ public class Options
     return optionSet != null;
     }
 
-  public void printInvalidOptionMessage( PrintStream printStream, String message )
+  public boolean printInvalidOptionMessage( PrintStream printStream, String message )
     {
     printStream.println( "invalid option: " + message );
     printUsage( printStream );
+
+    return false;
     }
 
-  public void printInvalidOptionMessage( PrintStream printStream, Exception exception )
+  public boolean printInvalidOptionMessage( PrintStream printStream, Exception exception )
     {
     printStream.println( "invalid option: " + exception.getMessage() );
     printUsage( printStream );
+
+    return false;
+    }
+
+  public boolean printErrorMessage( PrintStream printStream, Exception exception )
+    {
+    printStream.println( "error: " + exception.getMessage() );
+
+    return false;
     }
 
   protected void validate()
@@ -127,14 +145,33 @@ public class Options
     return optionSet.valueOf( platform );
     }
 
-  ////////////////
+  public boolean hasConfig()
+    {
+    return optionSet.has( config ) || System.getenv( "LINGUAL_CONFIG" ) != null;
+    }
+
+  public Map<String, String> getConfig()
+    {
+    if( !optionSet.has( config ) && System.getenv( "LINGUAL_CONFIG" ) != null )
+      return Splitter.on( "," ).withKeyValueSeparator( "=" ).split( System.getenv( "LINGUAL_CONFIG" ) );
+
+    Map<String, String> config = optionSet.valueOf( this.config );
+
+    if( config == null )
+      return Collections.emptyMap();
+
+    return config;
+    }
+
+  protected String getConfigString()
+    {
+    return Joiner.on( ";" ).withKeyValueSeparator( "=" ).join( getConfig() );
+    }
 
   protected boolean isSetWithNoArg( OptionSpec<String> spec )
     {
     return optionSet.has( spec ) && !optionSet.hasArgument( spec );
     }
-
-  ////////////////
 
   public void printDebug( PrintStream printStream )
     {
@@ -159,11 +196,12 @@ public class Options
 
   public void printVersion( PrintStream printStream )
     {
-    printStream.println( cascadingVersion() );
-    }
+    String versionString = String.format( "Concurrent, Inc - %s:%s, %s:%s ",
+      cascading.lingual.util.Version.LINGUAL,
+      cascading.lingual.util.Version.getFullVersionString(),
+      cascading.util.Version.CASCADING,
+      cascading.util.Version.getRelease() );
 
-  private String cascadingVersion()
-    {
-    return Version.getVersionString();
+    printStream.println( versionString );
     }
   }

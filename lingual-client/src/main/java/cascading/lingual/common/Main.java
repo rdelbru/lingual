@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.util.Properties;
 
+import cascading.lingual.util.Eigenbase;
 import com.google.common.base.Throwables;
 
 import static cascading.lingual.util.Logging.setLogLevel;
@@ -72,6 +73,11 @@ public abstract class Main<O extends Options>
   public O getOptions()
     {
     return options;
+    }
+
+  public Properties getProperties()
+    {
+    return properties;
     }
 
   public Printer getPrinter()
@@ -126,9 +132,13 @@ public abstract class Main<O extends Options>
   protected void setVerbose()
     {
     if( getOptions().isVerbose() )
+      {
       setLogLevel( Main.class.getClassLoader(), "", getOptions().getVerbose() );
-    else
-      setLogLevel( Main.class.getClassLoader(), "", "off" );
+      return;
+      }
+
+    setLogLevel( Main.class.getClassLoader(), "", "off" );
+    Eigenbase.setLogLevel( "off" );
     }
 
   protected void printFailure( PrintStream errPrintStream, Throwable throwable )

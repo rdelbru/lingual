@@ -20,7 +20,9 @@
 
 package cascading.lingual.catalog.ddl;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 
 import cascading.bind.catalog.handler.FormatHandler;
@@ -28,6 +30,7 @@ import cascading.bind.catalog.handler.ProtocolHandler;
 import cascading.lingual.catalog.Format;
 import cascading.lingual.catalog.Protocol;
 import cascading.lingual.catalog.SchemaCatalog;
+import cascading.lingual.catalog.SchemaDef;
 
 /**
  *
@@ -41,17 +44,29 @@ public class TestSchemaCatalog extends SchemaCatalog
   protected TestSchemaCatalog( Protocol defaultProtocol, Format defaultFormat )
     {
     super( defaultProtocol, defaultFormat );
+
+    HashMap<String, List<String>> protocolProperties = new HashMap<String, List<String>>();
+
+    protocolProperties.put( "fakeProperty", new ArrayList<String>() );
+
+    getRootSchemaDef().addProtocolProperties( defaultProtocol, protocolProperties );
+
+    HashMap<String, List<String>> formatProperties = new HashMap<String, List<String>>();
+
+    formatProperties.put( "fakeProperty", new ArrayList<String>() );
+
+    getRootSchemaDef().addFormatProperties( defaultFormat, formatProperties );
     }
 
   @Override
-  protected List<ProtocolHandler<Protocol, Format>> createProtocolHandlers()
+  protected List<ProtocolHandler<Protocol, Format>> createProtocolHandlers( SchemaDef schemaDef )
     {
-    return Collections.EMPTY_LIST;
+    return Collections.emptyList();
     }
 
   @Override
-  protected List<FormatHandler<Protocol, Format>> createFormatHandlers()
+  protected List<FormatHandler<Protocol, Format>> createFormatHandlers( SchemaDef schemaDef )
     {
-    return Collections.EMPTY_LIST;
+    return Collections.emptyList();
     }
   }
